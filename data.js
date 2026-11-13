@@ -79,13 +79,18 @@
         .sort((a, b) => (a.position || 0) - (b.position || 0)).map((p) => ({ url: p.url, caption: p.caption }));
       return { document: clone(doc), company: clone(company), photos };
     },
-    async accept(tok, name, selected) {
+    async accept(tok, name, selected, signature) {
       const d = this.db();
       const doc = d.documents.find((x) => x.public_token === tok && (x.type === 'estimate' || x.type === 'change_order') && x.status === 'sent');
       if (!doc) return false;
       const now = new Date().toISOString();
       if (Array.isArray(selected)) doc.items = doc.items.map((it, i) => (it.option ? { ...it, selected: selected.includes(i) } : it));
       Object.assign(doc, { status: 'accepted', accepted_at: now, accepted_by: name.slice(0, 120) });
+      if (signature) {
+        const co = d.companies.find((c) => c.id === doc.company_id) || {};
+        const snapDoc = clone(doc); delete snapDoc.signature;
+        doc.signature = { ...signature, name: name.slice(0, 120), signed_at: now, company: clone(co), document: snapDoc };
+      }
       d.events.push({ id: uid(), document_id: doc.id, kind: 'accepted', detail: doc.accepted_by, seen: false, created_at: now });
       this.save(d);
       return true;
@@ -157,7 +162,12 @@
       if (error) throw error;
       return data;
     },
-    async accept(tok, name, selected) {
+    async accept(tok, name, selected, signature) {
+      if (signature) {
+        const r = await this.sb.rpc('accept_estimate', { p_token: tok, p_name: name, p_selected: Array.isArray(selected) ? selected : null, p_signature: signature });
+        if (r.error) throw new Error(/function|signature/i.test(r.error.message) ? 'Signing is not set up yet. Run upgrade-3.sql in Supabase.' : r.error.message);
+        return r.data;
+      }
       if (Array.isArray(selected)) {
         const r = await this.sb.rpc('accept_estimate', { p_token: tok, p_name: name, p_selected: selected });
         if (!r.error) return r.data;

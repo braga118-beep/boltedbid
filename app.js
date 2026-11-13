@@ -17,6 +17,8 @@
     if (S.needsUpgrade && t === 'documents') { o = { ...o }; ['schedule', 'show_photos', 'milestone_index', 'milestone_name'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade2 && t === 'documents') { o = { ...o }; ['job_id', 'contract'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade2 && t === 'companies') { o = { ...o }; ['change_order_prefix', 'next_change_order_no'].forEach((k) => delete o[k]); }
+    if (S.needsUpgrade3 && t === 'companies') { o = { ...o }; ['hic_no', 'csl_no', 'ri_reg_no', 'primary_state', 'signer_name', 'salesperson', 'insurance_amount', 'warranty_term', 'work_hours', 'contractor_signature', 'contract_enabled', 'arbitration_enabled', 'contract_extra'].forEach((k) => delete o[k]); }
+    if (S.needsUpgrade3 && t === 'documents') { o = { ...o }; ['start_date', 'completion_date', 'contract_state', 'signature'].forEach((k) => delete o[k]); }
     return baseUpsert(t, o);
   };
   let E = null; // editor state: { doc, isNew, dirty, hash, saveCustomer }
@@ -65,7 +67,7 @@
     const tn = `${typeName(d).toLowerCase()} ${d.number}`;
     switch (e.kind) {
       case 'viewed': return `${d.customer_name} opened ${tn}`;
-      case 'accepted': return `${e.detail || d.customer_name} ${d.type === 'change_order' ? 'approved' : 'accepted'} ${tn}`;
+      case 'accepted': return `${e.detail || d.customer_name} ${d.type === 'change_order' ? 'approved' : 'accepted'}${d.signature ? ' and signed' : ''} ${tn}`;
       case 'sent': return `Sent ${tn} to ${e.detail || d.customer_name}`;
       case 'reminder': return `Sent a payment reminder for ${tn}`;
       case 'paid': return `Recorded ${money(e.detail)} payment on ${tn}`;
@@ -169,6 +171,7 @@
     const optional = await Promise.all(['items', 'photos', 'jobs'].map((t) => Store.list(t).then((r) => r, () => null)));
     S.needsUpgrade = optional[0] === null || optional[1] === null;
     S.needsUpgrade2 = optional[2] === null;
+    S.needsUpgrade3 = S.mode === 'cloud' && companies.length > 0 && !('contract_enabled' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
   }
 
@@ -225,9 +228,9 @@
       : `<p>${esc(S.user && S.user.email)}</p>`;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `Folio was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}jobs and change orders.`;
+    bn.innerHTML = `Folio was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}contracts and e-signatures.`;
   }
 
   function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted') && docById(e.document_id)); }
@@ -639,7 +642,7 @@
   function docFields(d) {
     const o = {};
     ['company_id', 'job_id', 'customer_id', 'customer_name', 'customer_email', 'customer_phone', 'customer_address', 'job_title', 'job_site',
-      'tax_rate', 'discount_type', 'discount_value', 'notes', 'terms', 'total', 'show_photos'].forEach((k) => (o[k] = d[k] ?? null));
+      'tax_rate', 'discount_type', 'discount_value', 'notes', 'terms', 'total', 'show_photos', 'contract_state'].forEach((k) => (o[k] = d[k] ?? null));
     o.show_photos = o.show_photos !== false;
     o.items = clone(d.items || []);
     return o;
@@ -815,7 +818,7 @@
       const ch = t.total >= 0 ? `adds ${money(t.total)} to` : `takes ${money(-t.total)} off`;
       msg = `${hi}\n\nAs discussed, here is change order ${d.number}${d.job_title ? ' for ' + d.job_title.toLowerCase() : ''}. It ${ch} the contract.\n\nYou can review and approve it online ${linkLine}\n\nThank you,\n${co.name}`;
     } else if (d.type === 'estimate') {
-      msg = `${hi}\n\nThank you for the opportunity. Your estimate${d.job_title ? ' for ' + d.job_title.toLowerCase() : ''} is ready, with a total of ${money(t.total)}.\n\nYou can review and accept it online ${linkLine}\n\nBest regards,\n${co.name}`;
+      msg = `${hi}\n\nThank you for the opportunity. Your estimate${d.job_title ? ' for ' + d.job_title.toLowerCase() : ''} is ready, with a total of ${money(t.total)}.\n\nYou can review${co.contract_enabled ? ', sign the contract' : ''} and accept it online ${linkLine}\n\nBest regards,\n${co.name}`;
     } else {
       msg = `${hi}\n\nPlease find invoice ${d.number} for ${money(t.balance)}${d.due_date ? ', due ' + fmtDate(d.due_date) : ''}.\n\nYou can view and download the invoice online ${linkLine}\n\nThank you for your business,\n${co.name}`;
     }
@@ -1059,6 +1062,8 @@
                 <dt><label for="fNum">Number</label></dt><dd><input id="fNum" class="ghost r" data-f="number" value="${val('number')}"></dd>
                 <dt><label for="fIss">Issued</label></dt><dd><input id="fIss" class="ghost r" type="date" data-f="issue_date" value="${val('issue_date')}"></dd>
                 <dt><label for="fDue">${inv ? 'Due' : 'Valid until'}</label></dt><dd><input id="fDue" class="ghost r" type="date" data-f="due_date" value="${val('due_date')}"></dd>
+                ${d.type === 'estimate' && !S.needsUpgrade3 ? `<dt><label for="fStart">Start</label></dt><dd><input id="fStart" class="ghost r" type="date" data-f="start_date" value="${val('start_date')}"></dd>
+                <dt><label for="fEnd">Completion</label></dt><dd><input id="fEnd" class="ghost r" type="date" data-f="completion_date" value="${val('completion_date')}"></dd>` : ''}
               </dl>
             </div>
           </header>
@@ -1211,6 +1216,10 @@
       const f = el.dataset.f;
       if (f === 'company_id') { if (ev.type === 'change') changeCompany(el.value); return; }
       E.doc[f] = el.type === 'checkbox' ? el.checked : ['discount_value', 'tax_rate'].includes(f) ? parseFloat(el.value) || 0 : el.value;
+      if (f === 'contract_state' && !E.doc[f]) E.doc[f] = null;
+      if (E.doc.type === 'estimate' && ['contract_state', 'start_date', 'completion_date', 'job_site', 'customer_address', 'customer_name'].includes(f) && ev.type === 'change') {
+        markDirty(); const r = $('#rail'); if (r) r.innerHTML = railHTML(); return;
+      }
       if (el.tagName === 'TEXTAREA') autosize(el);
     } else return;
     markDirty();
@@ -1292,6 +1301,9 @@
   async function ensureSaved() { return (E.isNew || E.dirty) ? saveDoc(true) : true; }
 
   const ACTS = {
+    kview: async () => { if (await ensureSaved()) contractModal(docById(E.doc.id)); },
+    kpdf: () => contractPdf(docById(E.doc.id)),
+    ksend: () => sendContractModal(docById(E.doc.id)),
     newco: async () => { if (await ensureSaved()) startChangeOrder(docById(E.doc.id)); },
     pbpick: () => pickItemsModal(),
     pbsave: (b) => {
@@ -1349,7 +1361,12 @@
     remind: async () => { if (await ensureSaved()) sendModal(docById(E.doc.id), 'reminder'); },
     pay: async () => { if (await ensureSaved()) paymentModal(docById(E.doc.id)); },
     convert: async () => { if (await ensureSaved()) convert(docById(E.doc.id)); },
-    more: (b) => openMenu(b, docMenu(docById(E.doc.id)).filter((x) => !x || x === '-' || !['Edit', 'Preview', 'Download PDF', 'Download JPEG', 'Record payment', 'Convert to invoice', 'Send', 'Send again'].includes(x.label))),
+    more: (b) => {
+      const d = docById(E.doc.id);
+      const hide = ['Edit', 'Preview', 'Download PDF', 'Download JPEG', 'Record payment', 'Send', 'Send again'];
+      if (!(d.schedule || []).length) hide.push('Convert to invoice');
+      openMenu(b, docMenu(d).filter((x) => !x || x === '-' || !hide.includes(x.label)));
+    },
     copylink: () => copyLink(E.doc),
     openlink: () => window.open(customerLink(E.doc, true), '_blank'),
     delpay: async (b) => {
@@ -1389,6 +1406,7 @@
       </div>
       ${d.type === 'estimate' && (d.schedule || []).length ? scheduleRail(d) : ''}
       ${d.type === 'change_order' ? contractRail(d) : ''}
+      ${d.type === 'estimate' ? signRail(d) : ''}
       ${d.type === 'estimate' && ['accepted', 'converted'].includes(d.status) && !S.needsUpgrade2 ? '<div class="rail-box"><h3>Extra work?</h3><p class="sub">Add work or credits after the estimate is accepted. The customer approves the change order online.</p><button class="btn wide" data-act="newco">New change order</button></div>' : ''}
       <div class="rail-box">
         <h3>Customer link</h3>
@@ -2290,6 +2308,85 @@
     btn.disabled = false;
   }
 
+  // ---------------- Contract (estimates) ----------------
+  function signRail(d) {
+    const co = company(d.company_id) || {};
+    if (S.needsUpgrade3) return '<div class="rail-box"><h3>Contract</h3><p class="sub">Run upgrade-3.sql in Supabase to turn on contracts and e-signatures.</p></div>';
+    if (!co.contract_enabled) return `<div class="rail-box"><h3>Contract</h3><p class="sub">Customers accept by typing their name. To have them sign your home improvement contract instead, turn on contracts in <a href="#/company/${co.id}">your company profile</a>.</p></div>`;
+    const sig = d.signature;
+    if (sig) {
+      const signed = new Date(sig.signed_at);
+      return `<div class="rail-box"><h3>Contract</h3>
+        <div class="k-status"><span class="ok">Signed by ${esc(sig.name)}</span>
+        <span class="sub">${esc(signed.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}, ${esc(sig.state || window.Contract.contractState(sig.document || d, sig.company || co).state)} contract${sig.arbitration_image ? ', arbitration signed' : ''}${sig.no_photos ? ', no portfolio photos' : ''}</span>
+        <span class="sub">Cancellation period ends at midnight, ${esc(window.Contract.addBusinessDays(signed, 3).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}. Don't start work before then.</span></div>
+        <div class="btn-row"><button class="btn" data-act="kview">View contract</button><button class="btn" data-act="kpdf">Download PDF</button><button class="btn" data-act="ksend">Send copy</button></div>
+        ${E && E.dirty ? '<p class="sub">Changes to the estimate after signing don\'t change the signed contract. Use a change order.</p>' : ''}</div>`;
+    }
+    const st = window.Contract.contractState(d, co);
+    const miss = window.Contract.issues(d, co);
+    const t = totals(d), first = D.scheduleAmounts(d)[0];
+    const capWarn = st.state === 'MA' && first && t.total > 0 && first.amount > t.total / 3 + 0.01
+      ? `<p class="sched-warn">The first payment (${money(first.amount)}) is more than one-third of the total. Massachusetts limits what you can collect before work starts.</p>` : '';
+    return `<div class="rail-box"><h3>Contract</h3>
+      <label class="k-state">Contract state<select data-f="contract_state"><option value="" ${!d.contract_state ? 'selected' : ''}>Automatic (${st.state})</option><option value="MA" ${d.contract_state === 'MA' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${d.contract_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select></label>
+      <p class="sub">${esc(st.from)}.</p>
+      ${miss.length ? `<p class="sub">Before your customer can sign, add:</p><ul class="k-miss">${miss.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '<p class="ok">Ready. Your customer signs the contract on their estimate page when they accept.</p>'}
+      ${capWarn}
+      <div class="btn-row"><button class="btn" data-act="kview">Preview contract</button></div></div>`;
+  }
+
+  function contractModal(d) {
+    const co = company(d.company_id) || {};
+    const ctx = window.Contract.ctxFor(d, co);
+    modal(`<div class="pv-head"><h2>${d.signature ? 'Signed contract' : 'Contract preview'} ${esc(d.number)}</h2>
+      <div class="btn-row"><button class="btn" id="kp">Download PDF</button><button class="btn" data-close>Close</button></div></div>
+      ${d.signature ? '' : '<p class="note">This is how the contract will look. Your customer signs it on their estimate page.</p>'}
+      <div class="pv-body">${window.Contract.render(ctx)}</div>`, (w) => { $('#kp', w).onclick = () => contractPdf(d); }, 'wide');
+  }
+  async function contractPdf(d) {
+    toast('Preparing the contract PDF', { ms: 1800 });
+    try { (await window.Contract.toPdf(d, company(d.company_id) || {})).save(`Contract ${fileName(d)}.pdf`); }
+    catch (e) { toast('Could not create the PDF: ' + e.message, { type: 'error' }); }
+  }
+
+  function sendContractModal(d) {
+    const co = company(d.company_id) || {};
+    const msg = `Hi ${firstName(d.customer_name)},\n\nThank you for signing. You can view and download your signed contract${d.job_title ? ' for ' + d.job_title.toLowerCase() : ''} here:\n${customerLink(d)}\n\nThank you,\n${co.name || ''}`;
+    modal(`<h2>Send the signed contract</h2><p class="sub">Your customer can view and download the signed contract from their estimate link at any time.</p>
+      <label>To<input id="ksTo" type="email" value="${esc(d.customer_email || '')}"></label>
+      <label>Message<textarea id="ksMsg" rows="8">${esc(msg)}</textarea></label>
+      <div class="send-opts"><button class="btn primary" data-k="gmail">Open in Gmail</button><button class="btn" data-k="mail">Open my email app</button><button class="btn" data-k="copy">Copy message</button><button class="btn" data-close>Close</button></div>`, (w, close) => {
+      $$('[data-k]', w).forEach((b) => (b.onclick = async () => {
+        const to = $('#ksTo', w).value.trim(), body = $('#ksMsg', w).value, sub = `Signed contract ${d.number} from ${co.name || ''}`;
+        const enc = encodeURIComponent;
+        if (b.dataset.k === 'gmail') window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${enc(to)}&su=${enc(sub)}&body=${enc(body)}`, '_blank');
+        else if (b.dataset.k === 'mail') window.location.href = `mailto:${enc(to)}?subject=${enc(sub)}&body=${enc(body)}`;
+        else { try { await navigator.clipboard.writeText(sub + '\n\n' + body); } catch (e) { prompt('Copy this message:', body); } toast('Message copied'); }
+        close();
+      }));
+    });
+  }
+
+  // Company profile: draw your signature once.
+  function signatureField(c, onChange) {
+    const box = $('#sigField');
+    let value = c.contractor_signature || '';
+    const draw = () => {
+      box.innerHTML = value
+        ? `<div class="sig-saved"><img src="${value}" alt="Your signature"></div><div class="btn-row"><button type="button" class="btn" id="sigRedo">Draw again</button></div>`
+        : `<div class="k-padbox"><div class="k-padhead"><span>Sign here with your finger or mouse</span><button type="button" class="link small" id="sigClear">Clear</button></div><canvas class="k-pad" id="sigPad"></canvas></div><div class="btn-row"><button type="button" class="btn" id="sigUse">Use this signature</button></div>`;
+      if (value) {
+        $('#sigRedo').onclick = () => { value = ''; onChange(value); draw(); };
+      } else {
+        const pd = window.Contract.pad($('#sigPad'));
+        $('#sigClear').onclick = () => pd.clear();
+        $('#sigUse').onclick = () => { if (pd.isEmpty()) { toast('Draw your signature first.', { type: 'error' }); return; } value = pd.image(); onChange(value); draw(); toast('Signature ready. Click Save company to keep it.'); };
+      }
+    };
+    draw();
+  }
+
   // ---------------- Customers ----------------
   function vCustomers(v) {
     v.innerHTML = `
@@ -2446,8 +2543,30 @@
         <section>
           <h2>Contact details</h2>
           <div class="grid2">${f('phone', 'Phone', 'tel')}${f('email', 'Email', 'email')}${f('website', 'Website')}${f('license_no', 'License number')}${f('tax_id', 'Tax ID')}</div>
-          ${ta('address', 'Address')}
+          ${ta('address', 'Address', 'Street address, not a P.O. box. Massachusetts and Rhode Island contracts require it.')}
         </section>
+        ${S.needsUpgrade3 ? '<section><h2>Contract and licenses</h2><p class="sub">Run upgrade-3.sql in Supabase to turn on contracts and e-signatures.</p></section>' : `
+        <section>
+          <h2>Contract and licenses</h2>
+          <p class="sub">When this is on, customers read and sign your home improvement contract on their estimate page when they accept. Massachusetts or Rhode Island wording is chosen from the job address; if the address has no state, the license you list first is used.</p>
+          <label class="check"><input type="checkbox" name="contract_enabled" ${c.contract_enabled ? 'checked' : ''}> Customers sign the contract when they accept an estimate</label>
+          <div class="grid2">
+            <label>License listed first<select name="primary_state"><option value="MA" ${c.primary_state !== 'RI' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${c.primary_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select><span class="hint">Used when a job address has no state.</span></label>
+            ${f('hic_no', 'MA HIC registration number')}
+            ${f('csl_no', 'MA CSL number (if any)')}
+            ${f('ri_reg_no', 'RI contractor registration number')}
+            ${f('signer_name', 'Signed for the company by', 'text', 'placeholder="Full name"')}
+            ${f('salesperson', 'Salesperson', 'text', 'placeholder="None"')}
+            ${f('insurance_amount', 'General liability insurance per occurrence', 'text', 'placeholder="$1,000,000"')}
+            ${f('warranty_term', 'Workmanship warranty', 'text', 'placeholder="1 year"')}
+            ${f('work_hours', 'Working days and hours', 'text', 'placeholder="Monday to Friday, 7 AM to 5 PM"')}
+          </div>
+          <label>Your signature<span class="hint">Drawn once and added to every contract as the contractor's signature.</span></label>
+          <div class="sig-field" id="sigField"></div>
+          <label class="check"><input type="checkbox" name="arbitration_enabled" ${c.arbitration_enabled !== false ? 'checked' : ''}> Offer the optional contractor arbitration agreement on Massachusetts contracts</label>
+          ${ta('contract_extra', 'Additional contract terms (optional)', 'Added as section 20 of every contract. Leave empty if you have none.')}
+          <p class="sub">The booking deposit and payment plan come from the payment schedule below. Each estimate also needs a start date and an estimated completion date.</p>
+        </section>`}
         <section>
           <h2>Numbering</h2>
           <div class="grid4">${f('estimate_prefix', 'Estimate prefix')}${f('next_estimate_no', 'Next estimate number', 'number', 'min="1"')}${f('invoice_prefix', 'Invoice prefix')}${f('next_invoice_no', 'Next invoice number', 'number', 'min="1"')}${S.needsUpgrade2 ? '' : f('change_order_prefix', 'Change order prefix') + f('next_change_order_no', 'Next change order number', 'number', 'min="1"')}</div>
@@ -2472,6 +2591,8 @@
 
     let logo = c.logo || '';
     const getSched = companySchedule(c);
+    let sigVal = c.contractor_signature || '';
+    if ($('#sigField')) signatureField(c, (v) => { sigVal = v; });
     const drawLogo = () => {
       $('#logoBox').innerHTML = logo ? `<img src="${logo}" alt="Company logo">` : '<span class="sub">No logo</span>';
       $('#logoRm').hidden = !logo;
@@ -2495,6 +2616,12 @@
       obj.next_estimate_no = Math.max(1, obj.next_estimate_no);
       obj.tax_rate = parseFloat(obj.tax_rate) || 0;
       obj.logo = logo;
+      if (!S.needsUpgrade3) {
+        obj.contract_enabled = !!form.elements.contract_enabled && form.elements.contract_enabled.checked;
+        obj.arbitration_enabled = !!form.elements.arbitration_enabled && form.elements.arbitration_enabled.checked;
+        obj.contractor_signature = sigVal;
+        if (obj.contract_enabled && !sigVal) toast('Contracts are on, but your signature is missing. Draw it under Contract and licenses.', { type: 'error', ms: 7000 });
+      }
       if (!S.needsUpgrade) {
         obj.use_schedule = $('#useSched').checked;
         obj.default_schedule = getSched();

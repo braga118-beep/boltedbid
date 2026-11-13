@@ -454,5 +454,5 @@
     return out.toDataURL('image/jpeg', 0.9);
   }
 
-  window.Doc = { esc, nl, money, num, round2, today, addDays, fmtDate, totals, status, STATUS_LABEL, companyLines, renderPaper, buildPages, toPdf, toJpeg, BASIS_LABEL, bases, scheduleAmounts, scheduleCheck, shareLabel, included, isQuote, typeName, TYPE_NAME };
+  window.Doc = { esc, nl, money, num, round2, today, addDays, fmtDate, totals, status, STATUS_LABEL, companyLines, renderPaper, buildPages, pageCanvas, toPdf, toJpeg, BASIS_LABEL, bases, scheduleAmounts, scheduleCheck, shareLabel, included, isQuote, typeName, TYPE_NAME };
 })();

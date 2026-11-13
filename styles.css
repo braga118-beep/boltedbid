@@ -752,3 +752,56 @@ body { overflow-x: clip; }
 .p-logo { width: 320px; height: 220px; max-width: 100%; max-height: none; background-repeat: no-repeat; background-size: contain; background-position: left center; }
 .p-from { max-width: 400px; }
 @media (max-width: 820px) { .paper .p-logo { width: min(320px, 100%); height: auto; aspect-ratio: 32 / 22; } }
+
+/* ---------- Contract ---------- */
+.contract-paper { margin-bottom: 24px; }
+.contract-paper, .kpg { font-size: 13.5px; line-height: 1.55; color: #1A232C; }
+.k-blk h2 { font-size: 26px; letter-spacing: -0.02em; color: var(--brand); margin: 0 0 4px; }
+.k-sub { color: #6B7682; font-size: 13px; margin: 0 0 18px; }
+.k-blk h3 { font-size: 14.5px; margin: 18px 0 6px; color: #16202A; }
+.k-blk h3.k-sec { font-size: 15.5px; margin-top: 26px; padding-top: 14px; border-top: 1px solid #E6E9EB; color: var(--brand); }
+.k-blk p { margin: 0 0 8px; }
+.k-blk ul, .k-blk ol { margin: 0 0 8px; padding-left: 20px; }
+.k-blk li { margin: 0 0 4px; }
+.k-big { font-weight: 700; font-size: 13.5px; letter-spacing: .01em; }
+.k-tbl { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 13px; }
+.k-tbl th { text-align: left; font-size: 11.5px; color: #6B7682; font-weight: 600; padding: 0 6px 6px 0; border-bottom: 2px solid var(--brand); }
+.k-tbl td { padding: 7px 6px 7px 0; border-bottom: 1px solid #ECEFF0; }
+.k-tbl .n { text-align: right; font-variant-numeric: tabular-nums; }
+.k-box { border: 1.5px solid #16202A; padding: 12px 14px 4px; border-radius: 4px; }
+.k-signs { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin: 14px 0 8px; }
+.k-lab { font-size: 11.5px; font-weight: 600; color: #6B7682; margin-bottom: 4px; }
+.k-sig { display: block; height: 64px; max-width: 100%; object-fit: contain; object-position: left bottom; }
+.k-sig-blank { height: 64px; display: flex; align-items: flex-end; color: #A5ADB4; font-size: 12px; font-style: italic; }
+.k-line { border-top: 1px solid #16202A; padding-top: 4px; font-weight: 600; font-size: 13px; }
+.k-meta { font-size: 11.5px; color: #6B7682; }
+.kpg .pg-body { font-size: 12.5px; line-height: 1.5; }
+.kpg .k-blk h3 { margin-top: 12px; }
+
+/* Signing form on the customer page */
+.kform { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.kform > label:not(.check) { font-size: 13px; }
+.kform input[name=n] { margin-top: 5px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; font-size: 16px; }
+.k-agree { align-items: flex-start; font-size: 14px; line-height: 1.45; color: var(--ink); }
+.k-agree input { margin-top: 3px; }
+.k-padbox { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; }
+.k-padhead { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; font-size: 12.5px; color: var(--muted); background: var(--desk); border-bottom: 1px solid var(--line-2); }
+.k-pad { display: block; width: 100%; height: 170px; touch-action: none; cursor: crosshair; background: linear-gradient(transparent 128px, #C8D0D4 128px, #C8D0D4 129px, transparent 129px); }
+.k-arb { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.k-arb summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.k-arb[open] { gap: 10px; }
+.k-arb[open] > * + * { margin-top: 10px; }
+.k-go { align-self: flex-start; padding: 12px 22px; font-size: 15px; }
+.k-note { margin: -4px 0 0; }
+
+/* Contract panel in the app */
+.k-status { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.k-miss { margin: 0 0 10px; padding-left: 18px; font-size: 13px; color: var(--red); }
+.k-miss li { margin-bottom: 2px; }
+.sig-field { display: flex; flex-direction: column; gap: 8px; }
+.sig-saved { height: 80px; border: 1px dashed #C6CED2; border-radius: 10px; display: grid; place-items: center; background: #FAFBFB; padding: 6px; }
+.sig-saved img { max-height: 100%; max-width: 100%; }
+@media (max-width: 820px) { .k-signs { grid-template-columns: 1fr; gap: 18px; } }
+.k-blk { display: flow-root; }
+.co-form select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; background: #fff; width: 100%; font-size: 14.5px; margin-top: 5px; }
+.k-state select { display: block; width: 100%; margin-top: 5px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; font-size: 13.5px; }
