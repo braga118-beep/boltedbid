@@ -91,6 +91,8 @@
       ? sched.map((m, i) => `<tr><td>${esc(m.name || 'Payment ' + (i + 1))}</td><td>${dueWhen(m, i, sched.length)}</td><td class="n">${money(m.amount)}</td></tr>`).join('')
       : `<tr><td>Full contract price</td><td>At completion</td><td class="n">${money(t.total)}</td></tr>`;
     const first = sched[0];
+    const dep = first && dueWhen(first, 0, sched.length) === 'Before work starts' ? first : null;
+    const depName = dep ? esc((dep.name || 'booking deposit').toLowerCase()) : '';
     const second = sched.length > 1 && dueWhen(sched[1], 1, sched.length) === 'On the day work starts' ? sched[1] : null;
 
     b.push(`<div class="k-title"><h2>Home Improvement Contract</h2><p class="k-sub">${MA ? 'Massachusetts' : 'Rhode Island'} &middot; Contract number ${esc(doc.number)}${sig ? ` &middot; Signed ${esc(dateTime(sig.signed_at))}` : ''}</p></div>`);
@@ -113,6 +115,7 @@
     b.push(h('5. Payment schedule') + p('Owner will pay Contractor as follows:') +
       `<table class="k-tbl"><thead><tr><th>Payment</th><th>When it is due</th><th class="n">Amount</th></tr></thead><tbody>${schedRows}</tbody></table>` +
       (first && second ? p(`<b>Payments before and at the start of work.</b> Before any work starts, Owner pays only the ${esc((first.name || 'deposit').toLowerCase())} of <b>${money(first.amount)}</b>. The next payment, ${esc((second.name || 'payment 2').toLowerCase())} of <b>${money(second.amount)}</b>, is collected on the day work starts, once work has begun. The rest is due as shown above.`) : '') +
+      (dep ? p(`<b>Non-refundable ${depName}.</b> The ${depName} of <b>${money(dep.amount)}</b> is due when this contract is signed. It pays for Contractor's time and expenses to schedule and prepare the job, such as site visits, measurements, estimating, travel and fuel, and reserving a place in Contractor's schedule. Once the 3-business-day cancellation period described in the notices below has ended, the ${depName} is <b>non-refundable</b>, including if Owner later ends the contract under section 16. It is credited toward the contract price. If Owner cancels within the cancellation period, it is refunded in full within 10 business days, as the Notice of Cancellation explains. It is also refunded if Contractor fails to start the work or ends the contract without cause.`) : '') +
       ul([
         MA ? '<b>(MA)</b> Any deposit paid before work starts will not be more than one-third of the total contract price, or the actual cost of special-order or custom-made materials or equipment that must be ordered before work starts, whichever is greater.' : '',
         'Final payment is due when the work is complete.' + (MA ? ' Massachusetts law does not allow final payment to be demanded until the contract is completed to the satisfaction of all parties.' : ''),
@@ -167,7 +170,7 @@
       (sig ? (sig.no_photos ? ' <b>Owner chose: no photos for portfolio use.</b>' : '') : ' Owner can opt out when signing.')));
 
     b.push(h('16. Ending the contract') + ul([
-      '<b>By Owner</b> (after any cancellation period has ended): Owner may end the contract with written notice. Owner then pays for all work done to that date, all materials ordered that cannot be returned, any restocking fees, and costs Contractor has already committed to.',
+      '<b>By Owner</b> (after any cancellation period has ended): Owner may end the contract with written notice. Owner then pays for all work done to that date, all materials ordered that cannot be returned, any restocking fees, and costs Contractor has already committed to.' + (dep ? ` The ${depName} is not refunded (section 5).` : ''),
       '<b>By Contractor:</b> Contractor may end the contract with written notice if Owner does not make a payment within 10 days of written notice that it is late, prevents Contractor from doing the work, or the site is unsafe and Owner does not fix it. Owner then pays as above.'
     ]));
 
