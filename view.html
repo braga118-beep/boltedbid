@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261114">
+  <link rel="stylesheet" href="styles.css?v=20261114b">
 </head>
 <body class="public">
   <div class="preview-banner" id="pvBanner" hidden>Preview as your customer. Opening this page yourself doesn't count as a customer view.</div>
@@ -24,10 +24,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="config.js?v=20261114"></script>
-  <script src="render.js?v=20261114"></script>
-  <script src="contract.js?v=20261114"></script>
-  <script src="data.js?v=20261114"></script>
+  <script src="config.js?v=20261114b"></script>
+  <script src="render.js?v=20261114b"></script>
+  <script src="contract.js?v=20261114b"></script>
+  <script src="data.js?v=20261114b"></script>
   <script>
   (async function () {
     const D = window.Doc;
@@ -60,6 +60,8 @@
     // Contract signing is on when the company turned it on; estimates get the full contract, change orders a signed approval.
     const needsContract = () => company.contract_enabled && C && D.isQuote(doc);
     const fullContract = () => needsContract() && doc.type === 'estimate';
+    // Accepted before contracts were turned on, and the contractor has sent the contract to sign.
+    const signLater = () => fullContract() && ['accepted', 'converted'].includes(doc.status) && !doc.signature && !!doc.contract_requested_at;
     const missing = () => (fullContract() ? C.issues(doc, company) : []);
     const canChoose = () => D.isQuote(doc) && doc.status === 'sent' && !(doc.due_date && doc.due_date < D.today());
 
@@ -106,8 +108,8 @@
     function signFormHTML() {
       const arb = fullContract() && C.contractState(doc, company).state === 'MA' && company.arbitration_enabled !== false;
       return `
-        <h2>${isCO ? 'Approve and sign this change order' : 'Accept and sign the contract'}</h2>
-        <p class="sub">${isCO ? `By signing, you approve change order ${D.esc(doc.number)} and its price. It becomes part of your contract with ${D.esc(company.name)}.` : 'Please read the contract above. By signing, you accept this estimate' + (optLines().length ? ' with the options you chose' : '') + ' and agree to the contract.' + firstPayment()}</p>
+        <h2>${isCO ? 'Approve and sign this change order' : signLater() ? 'Sign your contract' : 'Accept and sign the contract'}</h2>
+        <p class="sub">${signLater() ? `You accepted this estimate${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. Please read the contract above and sign it below.` : isCO ? `By signing, you approve change order ${D.esc(doc.number)} and its price. It becomes part of your contract with ${D.esc(company.name)}.` : 'Please read the contract above. By signing, you accept this estimate' + (optLines().length ? ' with the options you chose' : '') + ' and agree to the contract.' + firstPayment()}</p>
         <form id="acf" class="kform" autocomplete="on">
           ${fullContract() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read and agree to this contract, the attached estimate and the notices, including my right to cancel within 3 business days.</label>' : ''}
           <label>Your full name<input name="n" required autocomplete="name" placeholder="Your full name"></label>
@@ -117,13 +119,20 @@
             <label class="check"><input type="checkbox" name="arb"> I agree to the contractor arbitration agreement in Attachment E.</label>
             <div class="k-padbox"><div class="k-padhead"><span>Separate signature for arbitration</span><button type="button" class="link small" data-clear="arb">Clear</button></div><canvas class="k-pad" id="padArb"></canvas></div></details>` : ''}
           ${fullContract() ? '<label class="check"><input type="checkbox" name="nophotos"> No photos of my project for portfolio use (section 15)</label>' : ''}
-          <button class="btn primary k-go" type="submit" disabled>${isCO ? 'Approve and sign' : 'Accept and sign'}</button>
+          <button class="btn primary k-go" type="submit" disabled>${isCO ? 'Approve and sign' : signLater() ? 'Sign contract' : 'Accept and sign'}</button>
           <p class="sub k-note">Your signature, name, the date and time, and the device you use are recorded as proof of signing.</p>
         </form>`;
     }
 
     function drawAccept() {
       if (!D.isQuote(doc)) { box.hidden = true; return; }
+      if (signLater()) {
+        box.hidden = false;
+        if (missing().length) { box.innerHTML = `<h2>Almost ready</h2><p>${D.esc(company.name)} still needs to add some details to your contract before you can sign it online. Please contact them${company.phone ? ' at ' + D.esc(company.phone) : ''}.</p>`; return; }
+        box.innerHTML = signFormHTML();
+        bindSignForm();
+        return;
+      }
       if (doc.status === 'accepted' || doc.status === 'converted') {
         box.hidden = false;
         box.innerHTML = signedHTML();
@@ -158,6 +167,10 @@
       }
       box.innerHTML = optionsHTML() + signFormHTML();
       bindOptions();
+      bindSignForm();
+    }
+
+    function bindSignForm() {
       const form = document.getElementById('acf');
       const go = form.querySelector('.k-go');
       const main = C.pad(document.getElementById('padMain'), () => check());
@@ -201,30 +214,32 @@
     async function submit(form, signature) {
       const name = form.n.value.trim();
       if (!name) return;
-      if (preview) { alert(`This is a preview, so the ${noun} was not ${isCO ? 'approved' : 'accepted'}.`); return; }
+      const later = signLater();
+      if (preview) { alert(later ? 'This is a preview, so the contract was not signed.' : `This is a preview, so the ${noun} was not ${isCO ? 'approved' : 'accepted'}.`); return; }
       const b = form.querySelector('button[type=submit]');
       b.disabled = true; b.textContent = 'Saving';
       try {
         const selected = optLines().length ? doc.items.map((it, i) => (it.option && it.selected ? i : -1)).filter((i) => i >= 0) : undefined;
-        const ok = await window.Store.accept(tok, name, selected, signature);
+        const ok = later ? await window.Store.signContract(tok, name, signature) : await window.Store.accept(tok, name, selected, signature);
         if (ok === false) throw new Error('not accepted');
         try { const fresh = await window.Store.getPublic(tok, false); if (fresh && fresh.document) doc = fresh.document; } catch (e) { /* keep local */ }
-        if (doc.status !== 'accepted') {
+        if (later && !doc.signature) doc = { ...doc, signature: { ...signature, name, signed_at: new Date().toISOString(), company, document: { ...doc } } };
+        if (!later && doc.status !== 'accepted') {
           doc = { ...doc, status: 'accepted', accepted_by: name, accepted_at: new Date().toISOString() };
           if (signature) doc.signature = { ...signature, name, signed_at: doc.accepted_at, company, document: { ...doc } };
         }
         draw();
         window.scrollTo(0, 0);
       } catch (err) {
-        b.disabled = false; b.textContent = isCO ? 'Approve and sign' : 'Accept and sign';
-        alert(err && /upgrade-3/.test(err.message) ? err.message : `The ${noun} could not be ${isCO ? 'approved' : 'accepted'} online. Please contact ${company.name} directly.`);
+        b.disabled = false; b.textContent = isCO ? 'Approve and sign' : later ? 'Sign contract' : 'Accept and sign';
+        alert(err && /upgrade-[34]/.test(err.message) ? err.message : later ? `The contract could not be signed online. Please contact ${company.name} directly.` : `The ${noun} could not be ${isCO ? 'approved' : 'accepted'} online. Please contact ${company.name} directly.`);
       }
     }
 
     function draw() {
       document.title = `${typeName} ${doc.number} from ${company.name || ''}`;
       document.getElementById('pubCo').textContent = company.name || '';
-      const showContract = fullContract() && !missing().length && (doc.status === 'sent' || doc.signature || (preview && doc.status === 'draft'));
+      const showContract = fullContract() && !missing().length && (doc.status === 'sent' || doc.signature || signLater() || (preview && doc.status === 'draft'));
       paperEl.innerHTML = (showContract ? C.render(C.ctxFor(doc, company)) : '') + D.renderPaper(doc, company, photos);
       drawAccept();
     }

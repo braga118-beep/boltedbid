@@ -95,6 +95,18 @@
       this.save(d);
       return true;
     },
+    async signContract(tok, name, signature) {
+      const d = this.db();
+      const doc = d.documents.find((x) => x.public_token === tok && x.type === 'estimate' && ['accepted', 'converted'].includes(x.status) && !x.signature && x.contract_requested_at);
+      if (!doc || !signature) return false;
+      const now = new Date().toISOString();
+      const co = d.companies.find((c) => c.id === doc.company_id) || {};
+      const snapDoc = clone(doc); delete snapDoc.signature;
+      doc.signature = { ...signature, name: name.slice(0, 120), signed_at: now, company: clone(co), document: snapDoc };
+      d.events.push({ id: uid(), document_id: doc.id, kind: 'signed', detail: name.slice(0, 120), seen: false, created_at: now });
+      this.save(d);
+      return true;
+    },
     async send(p) {
       const d = this.db();
       const doc = d.documents.find((x) => x.id === p.document_id);
@@ -176,6 +188,11 @@
       const { data, error } = await this.sb.rpc('accept_estimate', { p_token: tok, p_name: name });
       if (error) throw error;
       return data;
+    },
+    async signContract(tok, name, signature) {
+      const r = await this.sb.rpc('sign_contract', { p_token: tok, p_name: name, p_signature: signature });
+      if (r.error) throw new Error(/function/i.test(r.error.message) ? 'Signing is not set up yet. Run upgrade-4.sql in Supabase.' : r.error.message);
+      return r.data;
     },
     async send(payload) {
       const { data, error } = await this.sb.functions.invoke('send-document', { body: payload });

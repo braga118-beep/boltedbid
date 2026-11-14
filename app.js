@@ -5,7 +5,7 @@
   const KINDS = ['Labor', 'Material', 'Service', 'Equipment', 'Subcontract', 'Permit', 'Expense', 'Other'];
   const UNITS = ['each', 'hour', 'day', 'sq ft', 'linear ft', 'sq yd', 'cu yd', 'lot', 'job'];
   const METHODS = ['Check', 'Cash', 'Zelle', 'Venmo', 'PayPal', 'Bank transfer', 'Card', 'Other'];
-  const TRACKED = ['status', 'amount_paid', 'sent_at', 'last_sent_at', 'viewed_at', 'view_count', 'accepted_at', 'accepted_by', 'converted_id', 'archived'];
+  const TRACKED = ['status', 'amount_paid', 'sent_at', 'last_sent_at', 'viewed_at', 'view_count', 'accepted_at', 'accepted_by', 'converted_id', 'archived', 'signature', 'contract_requested_at'];
 
   const S = {
     mode: null, user: null, companies: [], customers: [], documents: [], payments: [], events: [], items: [], photos: [], jobs: [], needsUpgrade: false, needsUpgrade2: false, pendingJob: null, pendingSource: null,
@@ -18,6 +18,7 @@
     if (S.needsUpgrade2 && t === 'documents') { o = { ...o }; ['job_id', 'contract'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade2 && t === 'companies') { o = { ...o }; ['change_order_prefix', 'next_change_order_no'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade3 && t === 'companies') { o = { ...o }; ['hic_no', 'csl_no', 'ri_reg_no', 'primary_state', 'signer_name', 'salesperson', 'insurance_amount', 'warranty_term', 'work_hours', 'contractor_signature', 'contract_enabled', 'arbitration_enabled', 'contract_extra', 'start_window'].forEach((k) => delete o[k]); }
+    if ((S.needsUpgrade3 || S.needsUpgrade4) && t === 'documents') { o = { ...o }; delete o.contract_requested_at; }
     if (S.needsUpgrade3 && t === 'documents') { o = { ...o }; ['start_date', 'completion_date', 'duration_text', 'contract_state', 'signature'].forEach((k) => delete o[k]); }
     return baseUpsert(t, o);
   };
@@ -68,6 +69,8 @@
     switch (e.kind) {
       case 'viewed': return `${d.customer_name} opened ${tn}`;
       case 'accepted': return `${e.detail || d.customer_name} ${d.type === 'change_order' ? 'approved' : 'accepted'}${d.signature ? ' and signed' : ''} ${tn}`;
+      case 'signed': return `${e.detail || d.customer_name} signed the contract for ${tn}`;
+      case 'contract_sent': return `Sent the contract for ${tn} to ${e.detail || d.customer_name}`;
       case 'sent': return `Sent ${tn} to ${e.detail || d.customer_name}`;
       case 'reminder': return `Sent a payment reminder for ${tn}`;
       case 'paid': return `Recorded ${money(e.detail)} payment on ${tn}`;
@@ -172,6 +175,7 @@
     S.needsUpgrade = optional[0] === null || optional[1] === null;
     S.needsUpgrade2 = optional[2] === null;
     S.needsUpgrade3 = S.mode === 'cloud' && companies.length > 0 && !('start_window' in companies[0]);
+    S.needsUpgrade4 = S.mode === 'cloud' && !S.needsUpgrade3 && documents.length > 0 && !('contract_requested_at' in documents[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
   }
 
@@ -228,12 +232,12 @@
       : `<p>${esc(S.user && S.user.email)}</p>`;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `Folio was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}contracts and e-signatures.`;
+    bn.innerHTML = `Folio was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : 'sending contracts for estimates already accepted'}.`;
   }
 
-  function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted') && docById(e.document_id)); }
+  function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)); }
   function renderBell() {
     const n = unread().length;
     const b = $('#bell .badge');
@@ -244,7 +248,7 @@
   function openBell(anchor) {
     if (menuEl && menuEl.classList.contains('bell-panel')) return closeMenus();
     closeMenus();
-    const evs = S.events.filter((e) => (e.kind === 'viewed' || e.kind === 'accepted') && docById(e.document_id)).sort(desc).slice(0, 20);
+    const evs = S.events.filter((e) => (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)).sort(desc).slice(0, 20);
     const m = document.createElement('div');
     m.className = 'menu bell-panel';
     m.innerHTML = `<div class="bp-head"><b>Notifications</b>${evs.some((e) => !e.seen) ? '<button class="link" id="markAll">Mark all as read</button>' : ''}</div>` +
@@ -273,7 +277,7 @@
     try { await loadAll(); } catch (e) { return; }
     const fresh = S.events.filter((e) => !S.known.has(e.id));
     fresh.forEach((e) => S.known.add(e.id));
-    fresh.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted')).forEach(notify);
+    fresh.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed')).forEach(notify);
     renderChrome();
     if (E && E.dirty) syncTracked();
     else if (!$('.modal-wrap')) route();
@@ -1303,6 +1307,7 @@
     kview: async () => { if (await ensureSaved()) contractModal(docById(E.doc.id)); },
     kpdf: () => contractPdf(docById(E.doc.id)),
     ksend: () => sendContractModal(docById(E.doc.id)),
+    kreq: async () => { if (await ensureSaved()) requestContractModal(docById(E.doc.id)); },
     newco: async () => { if (await ensureSaved()) startChangeOrder(docById(E.doc.id)); },
     pbpick: () => pickItemsModal(),
     pbsave: (b) => {
@@ -2324,12 +2329,24 @@
     }
     const st = window.Contract.contractState(d, co);
     const miss = window.Contract.issues(d, co);
+    const stateSel = `<label class="k-state">Contract state<select data-f="contract_state"><option value="" ${!d.contract_state ? 'selected' : ''}>Automatic (${st.state})</option><option value="MA" ${d.contract_state === 'MA' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${d.contract_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select></label>
+      <p class="sub">${esc(st.from)}.</p>`;
+    // Accepted before contracts were turned on: send the contract on its own to sign.
+    if (['accepted', 'converted'].includes(d.status)) {
+      if (S.needsUpgrade4) return '<div class="rail-box"><h3>Contract</h3><p class="sub">This estimate was accepted without a contract. Run upgrade-4.sql in Supabase to send the contract for your customer to sign.</p></div>';
+      const req = d.contract_requested_at;
+      return `<div class="rail-box"><h3>Contract</h3>
+        <p class="sub">This estimate was accepted without a signed contract.${req ? '' : ' Send your customer the contract to sign online.'}</p>
+        ${req ? `<div class="k-status"><span class="warn">Waiting for signature</span><span class="sub">Contract sent ${esc(fmtDate(req))}. You're notified when your customer signs.</span></div>` : ''}
+        ${stateSel}
+        ${miss.length ? `<p class="sub">Before you can send it, add:</p><ul class="k-miss">${miss.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+        <div class="btn-row"><button class="btn" data-act="kview">Preview contract</button><button class="btn primary" data-act="kreq" ${miss.length ? 'disabled' : ''}>Send &amp; Resend Contract</button></div></div>`;
+    }
     const t = totals(d), first = D.scheduleAmounts(d)[0];
     const capWarn = st.state === 'MA' && first && t.total > 0 && first.amount > t.total / 3 + 0.01
       ? `<p class="sched-warn">The first payment (${money(first.amount)}) is more than one-third of the total. Massachusetts limits what you can collect before work starts.</p>` : '';
     return `<div class="rail-box"><h3>Contract</h3>
-      <label class="k-state">Contract state<select data-f="contract_state"><option value="" ${!d.contract_state ? 'selected' : ''}>Automatic (${st.state})</option><option value="MA" ${d.contract_state === 'MA' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${d.contract_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select></label>
-      <p class="sub">${esc(st.from)}.</p>
+      ${stateSel}
       ${miss.length ? `<p class="sub">Before your customer can sign, add:</p><ul class="k-miss">${miss.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : '<p class="ok">Ready. Your customer signs the contract on their estimate page when they accept.</p>'}
       ${capWarn}
       <div class="btn-row"><button class="btn" data-act="kview">Preview contract</button></div></div>`;
@@ -2363,6 +2380,34 @@
         else if (b.dataset.k === 'mail') window.location.href = `mailto:${enc(to)}?subject=${enc(sub)}&body=${enc(body)}`;
         else { try { await navigator.clipboard.writeText(sub + '\n\n' + body); } catch (e) { prompt('Copy this message:', body); } toast('Message copied'); }
         close();
+      }));
+    });
+  }
+
+  // Estimates accepted before contracts were turned on: email the contract for the customer to sign.
+  function requestContractModal(d) {
+    const co = company(d.company_id) || {};
+    const miss = window.Contract.issues(d, co);
+    if (miss.length) { toast('Add the missing contract details first: ' + miss.join(', '), { type: 'error', ms: 8000 }); return; }
+    const again = !!d.contract_requested_at;
+    const msg = `Hi ${firstName(d.customer_name)},\n\nThank you for choosing ${co.name || 'us'}. Please review and sign the home improvement contract for your project${d.job_title ? ' (' + d.job_title + ')' : ''}, estimate ${d.number}, here:\n${customerLink(d)}\n\nIt only takes a minute: read the contract, then sign at the bottom with your finger or mouse. You can download a signed copy right after.\n\nThank you,\n${co.signer_name || co.name || ''}`;
+    modal(`<h2>${again ? 'Resend' : 'Send'} the contract to sign</h2><p class="sub">Your customer opens their estimate link, reads the contract and signs it online. You're notified when they sign.${again ? ` Last sent ${esc(fmtDate(d.contract_requested_at))}.` : ''}</p>
+      <label>To<input id="krTo" type="email" value="${esc(d.customer_email || '')}"></label>
+      <label>Message<textarea id="krMsg" rows="9">${esc(msg)}</textarea></label>
+      <div class="send-opts"><button class="btn primary" data-k="gmail">Open in Gmail</button><button class="btn" data-k="mail">Open my email app</button><button class="btn" data-k="copy">Copy message</button><button class="btn" data-close>Close</button></div>`, (w, close) => {
+      $$('[data-k]', w).forEach((b) => (b.onclick = async () => {
+        const to = $('#krTo', w).value.trim(), body = $('#krMsg', w).value, sub = `Please sign your contract: estimate ${d.number} from ${co.name || ''}`;
+        const enc = encodeURIComponent;
+        try {
+          const saved = await Store.upsert('documents', { id: d.id, contract_requested_at: new Date().toISOString() });
+          upsertLocal(S.documents, saved);
+          try { const ev = await Store.upsert('events', { document_id: d.id, kind: 'contract_sent', detail: to || null, seen: true }); upsertLocal(S.events, ev); S.known && S.known.add(ev.id); } catch (e) { /* not critical */ }
+        } catch (e) { toast('Could not mark the contract as sent: ' + e.message, { type: 'error', ms: 8000 }); return; }
+        if (b.dataset.k === 'gmail') window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${enc(to)}&su=${enc(sub)}&body=${enc(body)}`, '_blank');
+        else if (b.dataset.k === 'mail') window.location.href = `mailto:${enc(to)}?subject=${enc(sub)}&body=${enc(body)}`;
+        else { try { await navigator.clipboard.writeText(sub + '\n\n' + body); } catch (e) { prompt('Copy this message:', body); } toast('Message copied'); }
+        close();
+        afterDocChange(d.id);
       }));
     });
   }

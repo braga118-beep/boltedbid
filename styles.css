@@ -796,6 +796,7 @@ body { overflow-x: clip; }
 
 /* Contract panel in the app */
 .k-status { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.k-status .warn { color: var(--amber); font-weight: 600; font-size: 14px; }
 .k-miss { margin: 0 0 10px; padding-left: 18px; font-size: 13px; color: var(--red); }
 .k-miss li { margin-bottom: 2px; }
 .sig-field { display: flex; flex-direction: column; gap: 8px; }
