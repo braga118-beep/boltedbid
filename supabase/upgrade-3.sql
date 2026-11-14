@@ -100,3 +100,7 @@ $$;
 
 revoke all on function public.accept_estimate(text, text, int[], jsonb) from public;
 grant execute on function public.accept_estimate(text, text, int[], jsonb) to anon, authenticated;
+
+-- Schedule without fixed dates: start window (company) and projected duration (estimate)
+alter table public.companies add column if not exists start_window text default '2 to 4 weeks after this contract is signed';
+alter table public.documents add column if not exists duration_text text;
