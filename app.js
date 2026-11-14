@@ -17,8 +17,8 @@
     if (S.needsUpgrade && t === 'documents') { o = { ...o }; ['schedule', 'show_photos', 'milestone_index', 'milestone_name'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade2 && t === 'documents') { o = { ...o }; ['job_id', 'contract'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade2 && t === 'companies') { o = { ...o }; ['change_order_prefix', 'next_change_order_no'].forEach((k) => delete o[k]); }
-    if (S.needsUpgrade3 && t === 'companies') { o = { ...o }; ['hic_no', 'csl_no', 'ri_reg_no', 'primary_state', 'signer_name', 'salesperson', 'insurance_amount', 'warranty_term', 'work_hours', 'contractor_signature', 'contract_enabled', 'arbitration_enabled', 'contract_extra'].forEach((k) => delete o[k]); }
-    if (S.needsUpgrade3 && t === 'documents') { o = { ...o }; ['start_date', 'completion_date', 'contract_state', 'signature'].forEach((k) => delete o[k]); }
+    if (S.needsUpgrade3 && t === 'companies') { o = { ...o }; ['hic_no', 'csl_no', 'ri_reg_no', 'primary_state', 'signer_name', 'salesperson', 'insurance_amount', 'warranty_term', 'work_hours', 'contractor_signature', 'contract_enabled', 'arbitration_enabled', 'contract_extra', 'start_window'].forEach((k) => delete o[k]); }
+    if (S.needsUpgrade3 && t === 'documents') { o = { ...o }; ['start_date', 'completion_date', 'duration_text', 'contract_state', 'signature'].forEach((k) => delete o[k]); }
     return baseUpsert(t, o);
   };
   let E = null; // editor state: { doc, isNew, dirty, hash, saveCustomer }
@@ -171,7 +171,7 @@
     const optional = await Promise.all(['items', 'photos', 'jobs'].map((t) => Store.list(t).then((r) => r, () => null)));
     S.needsUpgrade = optional[0] === null || optional[1] === null;
     S.needsUpgrade2 = optional[2] === null;
-    S.needsUpgrade3 = S.mode === 'cloud' && companies.length > 0 && !('contract_enabled' in companies[0]);
+    S.needsUpgrade3 = S.mode === 'cloud' && companies.length > 0 && !('start_window' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
   }
 
@@ -1062,8 +1062,7 @@
                 <dt><label for="fNum">Number</label></dt><dd><input id="fNum" class="ghost r" data-f="number" value="${val('number')}"></dd>
                 <dt><label for="fIss">Issued</label></dt><dd><input id="fIss" class="ghost r" type="date" data-f="issue_date" value="${val('issue_date')}"></dd>
                 <dt><label for="fDue">${inv ? 'Due' : 'Valid until'}</label></dt><dd><input id="fDue" class="ghost r" type="date" data-f="due_date" value="${val('due_date')}"></dd>
-                ${d.type === 'estimate' && !S.needsUpgrade3 ? `<dt><label for="fStart">Start</label></dt><dd><input id="fStart" class="ghost r" type="date" data-f="start_date" value="${val('start_date')}"></dd>
-                <dt><label for="fEnd">Completion</label></dt><dd><input id="fEnd" class="ghost r" type="date" data-f="completion_date" value="${val('completion_date')}"></dd>` : ''}
+                ${d.type === 'estimate' && !S.needsUpgrade3 ? `<dt><label for="fDur">Duration</label></dt><dd><input id="fDur" class="ghost r" data-f="duration_text" value="${val('duration_text')}" placeholder="e.g. 3 to 4 weeks" title="Projected time to complete once work starts. Optional; shown in the contract as a projection."></dd>` : ''}
               </dl>
             </div>
           </header>
@@ -1217,7 +1216,7 @@
       if (f === 'company_id') { if (ev.type === 'change') changeCompany(el.value); return; }
       E.doc[f] = el.type === 'checkbox' ? el.checked : ['discount_value', 'tax_rate'].includes(f) ? parseFloat(el.value) || 0 : el.value;
       if (f === 'contract_state' && !E.doc[f]) E.doc[f] = null;
-      if (E.doc.type === 'estimate' && ['contract_state', 'start_date', 'completion_date', 'job_site', 'customer_address', 'customer_name'].includes(f) && ev.type === 'change') {
+      if (E.doc.type === 'estimate' && ['contract_state', 'duration_text', 'job_site', 'customer_address', 'customer_name'].includes(f) && ev.type === 'change') {
         markDirty(); const r = $('#rail'); if (r) r.innerHTML = railHTML(); return;
       }
       if (el.tagName === 'TEXTAREA') autosize(el);
@@ -2560,12 +2559,13 @@
             ${f('insurance_amount', 'General liability insurance per occurrence', 'text', 'placeholder="$1,000,000"')}
             ${f('warranty_term', 'Workmanship warranty', 'text', 'placeholder="1 year"')}
             ${f('work_hours', 'Working days and hours', 'text', 'placeholder="Monday to Friday, 7 AM to 5 PM"')}
+            ${f('start_window', 'Start is scheduled within', 'text', 'placeholder="2 to 4 weeks after this contract is signed"')}
           </div>
           <label>Your signature<span class="hint">Drawn once and added to every contract as the contractor's signature.</span></label>
           <div class="sig-field" id="sigField"></div>
           <label class="check"><input type="checkbox" name="arbitration_enabled" ${c.arbitration_enabled !== false ? 'checked' : ''}> Offer the optional contractor arbitration agreement on Massachusetts contracts</label>
           ${ta('contract_extra', 'Additional contract terms (optional)', 'Added as section 20 of every contract. Leave empty if you have none.')}
-          <p class="sub">The booking deposit and payment plan come from the payment schedule below. Each estimate also needs a start date and an estimated completion date.</p>
+          <p class="sub">The booking deposit and payment plan come from the payment schedule below. No start or completion dates are needed: the contract states your start window, and you confirm the actual start date with the customer in writing. Add an optional projected duration (for example \"3 to 4 weeks\") on each estimate.</p>
         </section>`}
         <section>
           <h2>Numbering</h2>

@@ -56,9 +56,17 @@
     need(co.insurance_amount, 'General liability insurance amount (Companies)');
     need(doc.customer_name, 'Customer name');
     need(doc.job_site || doc.customer_address, 'Job address');
-    need(doc.start_date, 'Start date');
-    need(doc.completion_date, 'Estimated completion date');
     return out;
+  }
+
+  // When each payment is due, read from its name: "booking"/"deposit" first = before work starts,
+  // "start"/"day 1" = the day work starts, "completion"/"final" = at completion, anything else = at that milestone.
+  function dueWhen(m, i, n) {
+    const name = String(m.name || '').toLowerCase();
+    if (/complet|final|finish/.test(name) || (i === n - 1 && n > 1 && !/start|day 1/.test(name))) return 'At completion';
+    if (/start|day 1|first day|begin/.test(name) && !(i === 0 && /book|sign/.test(name))) return 'On the day work starts';
+    if (i === 0 || /book|deposit|sign/.test(name)) return 'Before work starts';
+    return 'When this milestone is reached';
   }
 
   // ---------------- The contract ----------------
@@ -80,9 +88,10 @@
 
     const sched = D.scheduleAmounts(doc);
     const schedRows = sched.length
-      ? sched.map((m, i) => `<tr><td>${esc(m.name || 'Payment ' + (i + 1))}</td><td>${i === 0 ? 'Before work starts' : i === 1 ? 'On the day work starts' : i === sched.length - 1 ? 'At completion' : 'At this milestone'}</td><td class="n">${money(m.amount)}</td></tr>`).join('')
+      ? sched.map((m, i) => `<tr><td>${esc(m.name || 'Payment ' + (i + 1))}</td><td>${dueWhen(m, i, sched.length)}</td><td class="n">${money(m.amount)}</td></tr>`).join('')
       : `<tr><td>Full contract price</td><td>At completion</td><td class="n">${money(t.total)}</td></tr>`;
-    const first = sched[0], second = sched[1];
+    const first = sched[0];
+    const second = sched.length > 1 && dueWhen(sched[1], 1, sched.length) === 'On the day work starts' ? sched[1] : null;
 
     b.push(`<div class="k-title"><h2>Home Improvement Contract</h2><p class="k-sub">${MA ? 'Massachusetts' : 'Rhode Island'} &middot; Contract number ${esc(doc.number)}${sig ? ` &middot; Signed ${esc(dateTime(sig.signed_at))}` : ''}</p></div>`);
 
@@ -110,8 +119,14 @@
         'This contract has no clause that makes the unpaid balance due early because Contractor feels insecure.'
       ]));
 
-    b.push(h('6. Start and completion') + p(`Work will begin on or about <b>${fmtDate(doc.start_date)}</b> and be substantially completed on or about <b>${fmtDate(doc.completion_date)}</b>.`) +
-      p('These dates move, without penalty to Contractor, for delays Contractor does not control, including: weather; inspection timing; material shortages or delivery delays; signed change orders; hidden conditions (section 8); Owner selections, decisions or payments made late; and the work area not being available.') +
+    const window_ = esc(co.start_window || '2 to 4 weeks after this contract is signed');
+    const duration = esc(doc.duration_text || '');
+    b.push(h('6. Schedule') +
+      p(`<b>Start.</b> The start date is not fixed when this contract is signed. Contractor will schedule the start of work for approximately <b>${window_}</b>, and will confirm the start date with Owner in writing (by email or text message) at least 3 days before work begins. That written confirmation becomes the start date under this contract.`) +
+      p(duration
+        ? `<b>Projected duration.</b> Once started, the work is projected to take approximately <b>${duration}</b> to reach substantial completion. This is a projection, not a guaranteed completion date. Contractor will give Owner a projected completion date with the start date confirmation, and will update Owner in writing if it changes.`
+        : `<b>Projected completion.</b> Contractor will give Owner a projected completion date, as a range, with the start date confirmation. It is a projection, not a guaranteed completion date, and Contractor will update Owner in writing if it changes.`) +
+      p('The start date and projected completion move, without penalty to Contractor, for delays Contractor does not control, including: weather; inspection timing; material shortages or delivery delays; signed change orders; hidden conditions (section 8); Owner selections, decisions or payments made late; and the work area not being available.') +
       p('Work will not begin until both parties have signed this contract, Owner has received a copy, and any cancellation period in the notices below has ended, unless the work is an emergency.'));
 
     b.push(h('7. Changes to the work') + p('Any change to the work, price or schedule must be in a written change order signed by both parties before the changed work is done. Contractor will send change orders through Folio for Owner to approve and sign online. Verbal requests, by Owner or anyone else, are not binding and will not be performed until a change order is signed.'));
