@@ -1,4 +1,4 @@
-/* Folio: estimates and invoices */
+/* BoltedBid: estimates, contracts and invoices */
 :root {
   --bg: #E9ECEA;
   --sheet: #FFFFFF;
@@ -79,7 +79,8 @@ label .sub { font-weight: 400; }
 .app { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh; }
 .side { padding: 26px 16px 20px 22px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 24px; }
 .brand { font-weight: 700; font-size: 21px; letter-spacing: -0.03em; display: flex; align-items: center; gap: 10px; }
-.mark { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--spruce) 0 58%, var(--brass) 58%); }
+.mark { width: 26px; height: 26px; flex: none; background: url("icons/mark.svg") center / contain no-repeat; }
+.brand b { color: var(--spruce); font-weight: 700; }
 .switch { font-size: 12.5px; color: var(--muted); font-weight: 500; }
 .switch select { margin-top: 6px; font-size: 14px; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
@@ -806,3 +807,4 @@ body { overflow-x: clip; }
 .k-blk { display: flow-root; }
 .co-form select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; background: #fff; width: 100%; font-size: 14.5px; margin-top: 5px; }
 .k-state select { display: block; width: 100%; margin-top: 5px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; background: #fff; font-size: 13.5px; }
+.public #contract:not(:empty) { margin-top: 28px; }

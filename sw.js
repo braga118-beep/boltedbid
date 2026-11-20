@@ -1,7 +1,7 @@
-// Folio service worker: makes Folio installable and lets the app open even with a weak signal.
+// BoltedBid service worker: makes Folio installable and lets the app open even with a weak signal.
 // Your own files are always fetched fresh when online (so updates show right away);
 // the saved copy is only used when there's no connection.
-const CACHE = 'folio-v6';
+const CACHE = 'boltedbid-v7';
 const SHELL = ['./', './index.html', './app.js', './render.js', './data.js', './importer.js', './contract.js', './styles.css', './config.js', './manifest.webmanifest', './icons/icon-192.png'];
 const LIBS = /(^|\.)(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 
@@ -40,7 +40,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Folio's own files: always ask the server for the newest version, fall back to the saved copy offline.
+  // The app's own files: always ask the server for the newest version, fall back to the saved copy offline.
   e.respondWith(
     fetch(new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }))
       .then((res) => {

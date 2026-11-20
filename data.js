@@ -14,6 +14,7 @@
       let d = this.read();
       if (!d) { d = seed(); this.save(d); }
       ['companies', 'customers', 'documents', 'payments', 'events', 'items', 'photos', 'jobs'].forEach((k) => { if (!d[k]) d[k] = []; });
+      d.companies.forEach((c) => { if (c.contract_after_accept === undefined) c.contract_after_accept = true; });
       return d;
     },
     save(d) {
@@ -86,8 +87,10 @@
       const now = new Date().toISOString();
       if (Array.isArray(selected)) doc.items = doc.items.map((it, i) => (it.option ? { ...it, selected: selected.includes(i) } : it));
       Object.assign(doc, { status: 'accepted', accepted_at: now, accepted_by: name.slice(0, 120) });
+      const coA = d.companies.find((c) => c.id === doc.company_id) || {};
+      if (!signature && doc.type === 'estimate' && coA.contract_enabled && coA.contract_after_accept !== false) doc.contract_requested_at = now;
       if (signature) {
-        const co = d.companies.find((c) => c.id === doc.company_id) || {};
+        const co = coA;
         const snapDoc = clone(doc); delete snapDoc.signature;
         doc.signature = { ...signature, name: name.slice(0, 120), signed_at: now, company: clone(co), document: snapDoc };
       }

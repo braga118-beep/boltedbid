@@ -147,7 +147,7 @@
   // ---------------- Installable app ----------------
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
-  window.addEventListener('appinstalled', () => { installEvt = null; toast('Folio is installed. Open it from your home screen.'); });
+  window.addEventListener('appinstalled', () => { installEvt = null; toast('BoltedBid is installed. Open it from your home screen.'); });
   const isInstalled = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
@@ -160,7 +160,7 @@
       const r = await Store.init();
       S.mode = r.mode; S.user = r.user;
     } catch (e) {
-      document.body.innerHTML = `<p class="fatal">Folio could not connect to the database. Check the values in config.js. (${esc(e.message)})</p>`;
+      document.body.innerHTML = `<p class="fatal">BoltedBid could not connect to the database. Check the values in config.js. (${esc(e.message)})</p>`;
       return;
     }
     if (S.mode === 'cloud' && !S.user) return renderAuth();
@@ -176,6 +176,7 @@
     S.needsUpgrade2 = optional[2] === null;
     S.needsUpgrade3 = S.mode === 'cloud' && companies.length > 0 && !('start_window' in companies[0]);
     S.needsUpgrade4 = S.mode === 'cloud' && !S.needsUpgrade3 && documents.length > 0 && !('contract_requested_at' in documents[0]);
+    S.needsUpgrade5 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_after_accept' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
   }
 
@@ -232,9 +233,9 @@
       : `<p>${esc(S.user && S.user.email)}</p>`;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `Folio was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : 'sending contracts for estimates already accepted'}.`;
+    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : 'showing the contract to sign after your customer accepts'}.`;
   }
 
   function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)); }
@@ -288,7 +289,7 @@
     toast(text, { action: 'Open', onAction: () => go('#/doc/' + e.document_id), ms: 8000 });
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
-        const n = new Notification(text, { body: 'Folio' });
+        const n = new Notification(text, { body: 'BoltedBid' });
         n.onclick = () => { window.focus(); go('#/doc/' + e.document_id); };
       } catch (err) { /* ignore */ }
     }
@@ -303,7 +304,7 @@
     const draw = (msg = '', ok = false) => {
       a.innerHTML = `
       <div class="auth-card">
-        <div class="brand"><span class="mark"></span>Folio</div>
+        <div class="brand"><span class="mark"></span><span>Bolted<b>Bid</b></span></div>
         <h1>${mode === 'in' ? 'Sign in' : 'Create your account'}</h1>
         <form id="af">
           <label>Email<input type="email" name="email" required autocomplete="email"></label>
@@ -836,7 +837,7 @@
         <button class="btn" data-via="sms">Text message</button>
         <button class="btn" data-via="copy">Copy message</button>
       </div>
-      <p class="sub">Folio fills in the email for you. Review it and press send in your email. Folio marks the ${tn.toLowerCase()} as sent and notifies you when your customer opens the link.</p>`
+      <p class="sub">BoltedBid fills in the email for you. Review it and press send in your email. BoltedBid marks the ${tn.toLowerCase()} as sent and notifies you when your customer opens the link.</p>`
       : `<label class="check"><input type="checkbox" id="sAtt" checked> Attach a PDF copy</label>
       <div class="m-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sGo">${verb}</button></div>`;
 
@@ -2067,7 +2068,7 @@
   function vImport(v) {
     v.innerHTML = `
       <div class="head"><div><a class="back" href="#/settings">Settings</a><h1>Import from Skynova</h1>
-        <p class="lead">In Skynova, download each estimate or invoice as a PDF (row menu, then <b>Download/Print PDF</b>) and add them here. Folio reads each one and fills in the customer, address, number, dates, every line item with its description, rate and quantity, the notes and the totals. You check everything before anything is saved.</p></div></div>
+        <p class="lead">In Skynova, download each estimate or invoice as a PDF (row menu, then <b>Download/Print PDF</b>) and add them here. BoltedBid reads each one and fills in the customer, address, number, dates, every line item with its description, rate and quantity, the notes and the totals. You check everything before anything is saved.</p></div></div>
       <label class="drop" id="impDrop">
         <input type="file" id="impIn" accept="application/pdf,.pdf" multiple class="vh">
         <b>Choose PDF files</b><span class="sub">or drag them here. Add as many as you like, in one batch or several.</span>
@@ -2104,7 +2105,7 @@
     r.warn = (d.warnings || []).filter((w) => !/^Customer not found$|^Number not found$/.test(w) || (/Customer/.test(w) ? !d.customer.name : !d.number));
     if (!d.customer.name && !r.warn.includes('Customer not found')) r.warn.push('Customer not found');
     const t = impTotal(d);
-    if (d.items.length && Math.abs(t - d.total) > 0.05) r.warn.push(`Folio total ${money(t)} differs from the PDF's ${money(d.total)}`);
+    if (d.items.length && Math.abs(t - d.total) > 0.05) r.warn.push(`BoltedBid total ${money(t)} differs from the PDF's ${money(d.total)}`);
     if (r.dup) r.include = false;
   }
 
@@ -2145,14 +2146,14 @@
             <td>${esc(d.customer.name || '?')}<div class="sub">${known ? 'Existing customer' : 'New customer'}${d.customer.address ? ', ' + esc(d.customer.address.split('\n')[0]) : ''}</div></td>
             <td>${fmtDate(d.issue_date)}</td>
             <td class="n num">${money(impTotal(d))}<div class="sub">${plural(d.items.length, 'line')}${opts ? `, ${opts} optional` : ''}</div></td>
-            <td>${r.dup ? '<span class="pill">Already in Folio</span>' : r.warn.length ? `<span class="pill overdue" title="${esc(r.warn.join('. '))}">Check</span>` : '<span class="pill paid">Ready</span>'}</td>
+            <td>${r.dup ? '<span class="pill">Already in BoltedBid</span>' : r.warn.length ? `<span class="pill overdue" title="${esc(r.warn.join('. '))}">Check</span>` : '<span class="pill paid">Ready</span>'}</td>
             <td class="n"><button class="btn" data-rev="${r.id}">Review</button></td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
       <div class="imp-foot">
         ${S.companies.length > 1 ? `<label>Import into<select id="impCo">${S.companies.map((c) => `<option value="${c.id}" ${c.id === co.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
-        <p class="sub">Customers with the same name become one customer, so a customer with several estimates gets all of them. Each document gets its own job; an invoice for the same customer and amount as an imported estimate joins that estimate's job. Imported documents keep their Skynova numbers; new ones you create keep Folio's numbering.</p>
+        <p class="sub">Customers with the same name become one customer, so a customer with several estimates gets all of them. Each document gets its own job; an invoice for the same customer and amount as an imported estimate joins that estimate's job. Imported documents keep their Skynova numbers; new ones you create keep BoltedBid's numbering.</p>
         <div class="btn-row"><button class="btn" id="impClear">Start over</button><button class="btn primary" id="impGo" ${inc.length ? '' : 'disabled'}>Import ${plural(inc.length, 'document')}${custCount ? ` for ${plural(custCount, 'customer')}` : ''}</button></div>
       </div>`;
     area.onclick = (e) => {
@@ -2209,7 +2210,7 @@
       };
       const showTotal = () => {
         work.tax_rate = parseFloat($('#rvTax', w).value) || 0;
-        $('#rvTotal', w).textContent = `Total in Folio ${money(impTotal(work))}, PDF ${money(d.total)}`;
+        $('#rvTotal', w).textContent = `Total in BoltedBid ${money(impTotal(work))}, PDF ${money(d.total)}`;
       };
       const body = $('#rvLines', w);
       body.addEventListener('input', (e) => {
@@ -2336,7 +2337,7 @@
       if (S.needsUpgrade4) return '<div class="rail-box"><h3>Contract</h3><p class="sub">This estimate was accepted without a contract. Run upgrade-4.sql in Supabase to send the contract for your customer to sign.</p></div>';
       const req = d.contract_requested_at;
       return `<div class="rail-box"><h3>Contract</h3>
-        <p class="sub">This estimate was accepted without a signed contract.${req ? '' : ' Send your customer the contract to sign online.'}</p>
+        <p class="sub">${req ? 'Your customer accepted this estimate. The contract is waiting for their signature.' : 'This estimate was accepted without a signed contract. Send your customer the contract to sign online.'}</p>
         ${req ? `<div class="k-status"><span class="warn">Waiting for signature</span><span class="sub">Contract sent ${esc(fmtDate(req))}. You're notified when your customer signs.</span></div>` : ''}
         ${stateSel}
         ${miss.length ? `<p class="sub">Before you can send it, add:</p><ul class="k-miss">${miss.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
@@ -2749,7 +2750,7 @@
       }
 
       const counts = Object.entries(tables).map(([k, v]) => `  ${k}: ${v.length}`).join('\n');
-      zip.file('README.txt', `Folio backup, ${stamp}
+      zip.file('README.txt', `BoltedBid backup, ${stamp}
 Account: ${S.mode === 'demo' ? 'demo mode (this browser)' : (S.user && S.user.email) || ''}
 
 What's inside
@@ -2760,12 +2761,12 @@ ${counts}
 - site/   The website files as they were live on this date (config.js included).
 ${failed.length ? `\n${failed.length} photo(s) could not be downloaded:\n${failed.join('\n')}\n` : ''}
 To put the website back: upload the files in site/ to your GitHub repository.
-The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from the original Folio download.
+The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from the original BoltedBid download.
 `);
 
       status('Creating the zip file');
       const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-      saveBlob(blob, `Folio backup ${stamp}.zip`);
+      saveBlob(blob, `BoltedBid backup ${stamp}.zip`);
       status(`Backup downloaded: ${plural(S.documents.length, 'document')}, ${plural(S.photos.length, 'photo')}${failed.length ? `, ${failed.length} photo(s) skipped` : ''}.`);
       toast('Backup downloaded');
     } catch (e) {
@@ -2796,7 +2797,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
       </section>
       <section class="set">
         <h2>Notifications</h2>
-        <p class="sub">Folio shows a notification when a customer opens or accepts an estimate or invoice, as long as Folio is open in a browser tab. Desktop notifications also appear when the tab is in the background.</p>
+        <p class="sub">BoltedBid shows a notification when a customer opens or accepts an estimate or invoice, as long as BoltedBid is open in a browser tab. Desktop notifications also appear when the tab is in the background.</p>
         ${notif}
       </section>
       <section class="set">
@@ -2805,9 +2806,9 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
         <a class="btn" href="#/import">Import PDFs</a>
       </section>
       <section class="set">
-        <h2>Folio app on your phone and tablet</h2>
-        ${isInstalled() ? '<p class="ok">You are using the installed Folio app on this device.</p>'
-        : installEvt ? '<p class="sub">Install Folio on this device. It gets its own icon, opens full screen like a regular app, and can use your camera for job photos.</p><button class="btn primary" id="installBtn">Install Folio</button>'
+        <h2>BoltedBid app on your phone and tablet</h2>
+        ${isInstalled() ? '<p class="ok">You are using the installed BoltedBid app on this device.</p>'
+        : installEvt ? '<p class="sub">Install BoltedBid on this device. It gets its own icon, opens full screen like a regular app, and can use your camera for job photos.</p><button class="btn primary" id="installBtn">Install BoltedBid</button>'
         : isIOS() ? '<p class="sub">To install on iPhone or iPad: open this page in <b>Safari</b>, tap the <b>Share</b> button (the square with an arrow), then <b>Add to Home Screen</b>, then <b>Add</b>.</p>'
         : '<p class="sub">On an Android phone or tablet: open this page in <b>Chrome</b>, tap the <b>⋮</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>). On a computer, use the install icon at the right end of Chrome\'s address bar.</p>'}
       </section>

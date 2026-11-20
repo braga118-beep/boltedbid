@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Your document</title>
+  <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261114b">
+  <link rel="stylesheet" href="styles.css?v=20261120">
 </head>
 <body class="public">
   <div class="preview-banner" id="pvBanner" hidden>Preview as your customer. Opening this page yourself doesn't count as a customer view.</div>
@@ -18,16 +20,17 @@
   </header>
   <main class="pub-wrap">
     <div id="paper"><p class="pub-loading">Loading</p></div>
+    <div id="contract"></div>
     <section id="accept" class="accept" hidden></section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="config.js?v=20261114b"></script>
-  <script src="render.js?v=20261114b"></script>
-  <script src="contract.js?v=20261114b"></script>
-  <script src="data.js?v=20261114b"></script>
+  <script src="config.js?v=20261120"></script>
+  <script src="render.js?v=20261120"></script>
+  <script src="contract.js?v=20261120"></script>
+  <script src="data.js?v=20261120"></script>
   <script>
   (async function () {
     const D = window.Doc;
@@ -36,6 +39,7 @@
     const preview = params.get('preview') === '1';
     const paperEl = document.getElementById('paper');
     const box = document.getElementById('accept');
+    const contractEl = document.getElementById('contract');
     const fail = (title, msg) => { paperEl.innerHTML = `<div class="pub-msg"><h1>${title}</h1><p>${msg}</p></div>`; };
     document.getElementById('pvBanner').hidden = !preview;
 
@@ -62,6 +66,9 @@
     const fullContract = () => needsContract() && doc.type === 'estimate';
     // Accepted before contracts were turned on, and the contractor has sent the contract to sign.
     const signLater = () => fullContract() && ['accepted', 'converted'].includes(doc.status) && !doc.signature && !!doc.contract_requested_at;
+    // Estimate first: the customer accepts, then the contract appears to sign (needs upgrade-5.sql).
+    // Without that upgrade, the older one-step "accept and sign" is used.
+    const afterAccept = () => fullContract() && company.contract_after_accept === true;
     const missing = () => (fullContract() ? C.issues(doc, company) : []);
     const canChoose = () => D.isQuote(doc) && doc.status === 'sent' && !(doc.due_date && doc.due_date < D.today());
 
@@ -101,7 +108,7 @@
     function signedHTML() {
       const sig = doc.signature;
       return `<p class="ok">You ${isCO ? 'approved' : 'accepted'} this ${noun}${doc.accepted_by ? ' as ' + D.esc(doc.accepted_by) : ''}${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. ${D.esc(company.name)} has been notified.</p>
-        ${sig && fullContract() ? `<p class="sub">Your signed contract is shown above the estimate. You have until midnight of ${D.esc(C.addBusinessDays(new Date(sig.signed_at), 3).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))} to cancel, as explained in Attachment A.</p>
+        ${sig && fullContract() ? `<p class="sub">Your signed contract is shown above. You have until midnight of ${D.esc(C.addBusinessDays(new Date(sig.signed_at), 3).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))} to cancel, as explained in Attachment A.</p>
         <div class="btn-row"><button class="btn primary" id="kDl">Download signed contract (PDF)</button></div>` : ''}`;
     }
 
@@ -109,7 +116,7 @@
       const arb = fullContract() && C.contractState(doc, company).state === 'MA' && company.arbitration_enabled !== false;
       return `
         <h2>${isCO ? 'Approve and sign this change order' : signLater() ? 'Sign your contract' : 'Accept and sign the contract'}</h2>
-        <p class="sub">${signLater() ? `You accepted this estimate${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. Please read the contract above and sign it below.` : isCO ? `By signing, you approve change order ${D.esc(doc.number)} and its price. It becomes part of your contract with ${D.esc(company.name)}.` : 'Please read the contract above. By signing, you accept this estimate' + (optLines().length ? ' with the options you chose' : '') + ' and agree to the contract.' + firstPayment()}</p>
+        <p class="sub">${signLater() ? `You accepted this estimate${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. Please read the contract above and sign it below.` : isCO ? `By signing, you approve change order ${D.esc(doc.number)} and its price. It becomes part of your contract with ${D.esc(company.name)}.` : 'Please read the contract above the estimate. By signing, you accept this estimate' + (optLines().length ? ' with the options you chose' : '') + ' and agree to the contract.' + firstPayment()}</p>
         <form id="acf" class="kform" autocomplete="on">
           ${fullContract() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read and agree to this contract, the attached estimate and the notices, including my right to cancel within 3 business days.</label>' : ''}
           <label>Your full name<input name="n" required autocomplete="name" placeholder="Your full name"></label>
@@ -155,11 +162,11 @@
         bindOptions();
         return;
       }
-      if (!needsContract()) {
+      if (!needsContract() || afterAccept()) {
         box.innerHTML = `
           ${optionsHTML()}
           <h2>${isCO ? 'Approve this change order' : 'Ready to go ahead?'}</h2>
-          <p class="sub">Type your full name to ${isCO ? 'approve this change order' : 'accept this estimate'}${optLines().length ? ' with the options you chose' : ''}. ${D.esc(company.name)} is notified right away.${isCO ? '' : firstPayment()}</p>
+          <p class="sub">Type your full name to ${isCO ? 'approve this change order' : 'accept this estimate'}${optLines().length ? ' with the options you chose' : ''}. ${D.esc(company.name)} is notified right away.${afterAccept() ? ' Next, you\'ll review and sign your contract right here on this page.' : ''}${isCO ? '' : firstPayment()}</p>
           <form id="acf" class="acf"><input name="n" required placeholder="Your full name" autocomplete="name" aria-label="Your full name"><button class="btn primary" type="submit">${isCO ? 'Approve change order' : 'Accept estimate'}</button></form>`;
         bindOptions();
         document.getElementById('acf').onsubmit = (e) => { e.preventDefault(); submit(e.target, null); };
@@ -226,10 +233,13 @@
         if (later && !doc.signature) doc = { ...doc, signature: { ...signature, name, signed_at: new Date().toISOString(), company, document: { ...doc } } };
         if (!later && doc.status !== 'accepted') {
           doc = { ...doc, status: 'accepted', accepted_by: name, accepted_at: new Date().toISOString() };
+          if (!signature && afterAccept()) doc.contract_requested_at = doc.accepted_at;
           if (signature) doc.signature = { ...signature, name, signed_at: doc.accepted_at, company, document: { ...doc } };
         }
         draw();
-        window.scrollTo(0, 0);
+        // Just accepted: take them to the contract they now need to sign.
+        if (!later && signLater() && contractEl.firstElementChild) contractEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.scrollTo(0, 0);
       } catch (err) {
         b.disabled = false; b.textContent = isCO ? 'Approve and sign' : later ? 'Sign contract' : 'Accept and sign';
         alert(err && /upgrade-[34]/.test(err.message) ? err.message : later ? `The contract could not be signed online. Please contact ${company.name} directly.` : `The ${noun} could not be ${isCO ? 'approved' : 'accepted'} online. Please contact ${company.name} directly.`);
@@ -239,8 +249,11 @@
     function draw() {
       document.title = `${typeName} ${doc.number} from ${company.name || ''}`;
       document.getElementById('pubCo').textContent = company.name || '';
-      const showContract = fullContract() && !missing().length && (doc.status === 'sent' || doc.signature || signLater() || (preview && doc.status === 'draft'));
-      paperEl.innerHTML = (showContract ? C.render(C.ctxFor(doc, company)) : '') + D.renderPaper(doc, company, photos);
+      const beforeAccept = doc.status === 'sent' || (preview && doc.status === 'draft');
+      const showContract = fullContract() && !missing().length && (doc.signature || signLater() || (beforeAccept && !afterAccept()));
+      // The estimate always comes first; the contract follows it, then the accept or sign box.
+      paperEl.innerHTML = D.renderPaper(doc, company, photos);
+      contractEl.innerHTML = showContract ? C.render(C.ctxFor(doc, company)) : '';
       drawAccept();
     }
     draw();
