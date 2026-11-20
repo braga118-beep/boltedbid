@@ -293,7 +293,7 @@
     <section class="hero">
       <div class="wrap">
         <div>
-          <div class="kick">For Professional Contractors.</div>
+          <div class="kick">For home improvement contractors</div>
           <h1>Win the job. Get it signed. <em>Get paid.</em></h1>
           <p class="lead">BoltedBid puts your estimates, contracts and invoices in one place. Send a polished estimate, let your customer accept and sign from their phone, and invoice every milestone.</p>
           <div class="ctas">
@@ -538,13 +538,15 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="config.js?v=20261120b"></script>
-  <script src="data.js?v=20261120b"></script>
+  <script src="config.js?v=20261120c"></script>
+  <script src="plans.js?v=20261120c"></script>
+  <script src="data.js?v=20261120c"></script>
   <script>
   (function () {
-    // ---- Payment links: paste your Stripe (or other) checkout links here when they're ready.
-    // While empty, the pricing buttons take people to "Create account" with that plan chosen.
-    const PAYMENT_LINKS = { monthly: '', yearly: '' };
+    // ---- Payment links live in plans.js (one place for the front page and the app).
+    // While they're empty, the pricing buttons take people to "Create account" with that plan chosen.
+    const P = window.BB_PLANS || {};
+    const PAYMENT_LINKS = { monthly: (P.monthly && P.monthly.link) || '', yearly: (P.yearly && P.yearly.link) || '' };
 
     const $ = (s, el = document) => el.querySelector(s);
     const $$ = (s, el = document) => [...el.querySelectorAll(s)];

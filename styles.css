@@ -844,3 +844,30 @@ body { overflow-x: clip; }
 .k-mode label > span { flex: 1; text-align: left; }
 .set-list { display: grid; gap: 10px; margin-top: 12px; }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fff; }
+
+/* ---------- Account notice + plan ---------- */
+.acct-bar { margin: 0 28px 14px; padding: 10px 16px; border-radius: 12px; background: var(--blue-tint); color: var(--blue); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 14.5px; }
+.acct-bar a { font-weight: 700; color: inherit; }
+.acct-bar.stop { background: var(--amber-tint); color: var(--amber); }
+.plan-now { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 6px; }
+
+/* ---------- Admin ---------- */
+.ad-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 6px 0 18px; }
+.ad-k { text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 14px 16px; font: inherit; color: inherit; display: grid; gap: 2px; cursor: default; }
+.ad-k[data-f]:not([data-f=""]) { cursor: pointer; }
+.ad-k[data-f]:not([data-f=""]):hover { border-color: #BFC8C5; }
+.ad-k.on { border-color: var(--spruce); box-shadow: inset 0 0 0 1px var(--spruce); }
+.ad-k span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.ad-k b { font-size: 24px; letter-spacing: -0.02em; }
+.ad-k small { font-size: 12.5px; color: var(--muted); }
+.seg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font: 600 13px var(--font); color: var(--ink-2); cursor: pointer; }
+.chip.on { background: var(--spruce); border-color: var(--spruce); color: #fff; }
+.ad-tbl td { vertical-align: middle; }
+.ad-tbl .warn { color: var(--amber); }
+.ad-m { display: grid; gap: 18px; margin: 12px 0 18px; }
+.ad-m section { border: 1px solid var(--line-2); border-radius: 14px; padding: 16px; }
+.ad-m h3 { font-size: 15px; margin: 0 0 10px; }
+.ad-m .btn-row { margin-top: 10px; align-items: center; }
+@media (max-width: 1100px) { .ad-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .ad-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .acct-bar { margin: 0 12px 12px; } }

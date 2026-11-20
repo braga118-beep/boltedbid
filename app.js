@@ -2,6 +2,7 @@
   'use strict';
   const D = window.Doc, Store = window.Store;
   const { esc, money, fmtDate, today, addDays, totals, status, STATUS_LABEL } = D;
+  const num = D.num;
   const KINDS = ['Labor', 'Material', 'Service', 'Equipment', 'Subcontract', 'Permit', 'Expense', 'Other'];
   const UNITS = ['each', 'hour', 'day', 'sq ft', 'linear ft', 'sq yd', 'cu yd', 'lot', 'job'];
   const METHODS = ['Check', 'Cash', 'Zelle', 'Venmo', 'PayPal', 'Bank transfer', 'Card', 'Other'];
@@ -207,6 +208,62 @@
     S.needsUpgrade5 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_after_accept' in companies[0]);
     S.needsUpgrade6 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_mode' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
+    const acc = await Store.myAccount().catch(() => ({}));
+    S.account = acc.account || null;
+    S.isAdmin = !!acc.admin;
+    S.needsUpgrade7 = S.mode === 'cloud' && !S.needsUpgrade3 && !!acc.missing;
+  }
+
+  // ---------------- Accounts: trial, plan, access ----------------
+  const PLANS = window.BB_PLANS || { trialDays: 30, monthly: { name: 'Monthly', price: 15, per: 'month', link: '' }, yearly: { name: 'Yearly', price: 130, per: 'year', link: '' } };
+  const daysTo = (d) => Math.round((new Date(d + 'T12:00:00') - new Date(D.today() + 'T12:00:00')) / 86400000);
+  const planOf = (a) => PLANS[(a && a.plan) === 'yearly' ? 'yearly' : 'monthly'];
+  const planPrice = (a) => Math.round(planOf(a).price * (1 - (Number(a && a.discount_percent) || 0) / 100) * 100) / 100;
+  function acctState(a) {
+    if (!a) return { key: 'none', label: 'No account', cls: '', can: true };
+    const st = a.status;
+    if (st === 'revoked') return { key: 'revoked', label: 'Revoked', cls: 'declined', can: false };
+    if (st === 'canceled') return { key: 'canceled', label: 'Canceled', cls: 'expired', can: false };
+    if (st === 'comped') return { key: 'comped', label: 'Comped (free)', cls: 'converted', can: true };
+    if (st === 'trial') {
+      const n = daysTo(a.trial_ends);
+      if (n < 0) return { key: 'trial_expired', label: 'Trial ended', cls: 'expired', can: false, days: n };
+      return { key: 'trial', label: n === 0 ? 'Trial ends today' : `Trial, ${plural(n, 'day')} left`, cls: n <= 7 ? 'partial' : 'sent', can: true, days: n };
+    }
+    if (!a.paid_through) return { key: 'active', label: 'Paying', cls: 'paid', can: true };
+    const g = daysTo(a.paid_through);
+    if (st === 'past_due' || (g < 0 && g >= -3)) return { key: 'past_due', label: 'Past due', cls: 'overdue', can: g >= -3, days: g };
+    if (g < 0) return { key: 'lapsed', label: 'Payment lapsed', cls: 'overdue', can: false, days: g };
+    return { key: 'active', label: 'Paying', cls: 'paid', can: true, days: g };
+  }
+  function addPeriod(iso, plan) {
+    const d = new Date(iso + 'T12:00:00');
+    if (plan === 'yearly') d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }
+  function payLink(plan) {
+    const p = PLANS[plan];
+    if (!p || !p.link) return '';
+    const u = new URL(p.link);
+    if (S.user && S.user.email && !u.searchParams.has('prefilled_email')) u.searchParams.set('prefilled_email', S.user.email);
+    return u.href;
+  }
+  function renderAcctBar() {
+    const bar = $('#acctBar');
+    if (!bar) return;
+    const a = S.account;
+    if (S.mode !== 'cloud' || !a || S.isAdmin) { bar.hidden = true; return; }
+    const st = acctState(a);
+    let html = '';
+    if (st.key === 'trial') html = `<span><b>Free trial:</b> ${st.days === 0 ? 'ends today' : plural(st.days, 'day') + ' left'}.</span> <a href="#/settings">Choose a plan</a>`;
+    else if (st.key === 'past_due') html = '<span><b>Payment due.</b> Renew your plan to keep working without interruption.</span> <a href="#/settings">Renew</a>';
+    else if (!st.can) html = st.key === 'revoked'
+      ? `<span><b>Your account is paused.</b> You can view and download your work, but not change it.${PLANS.support ? ' Contact ' + esc(PLANS.support) + '.' : ''}</span>`
+      : `<span><b>${st.key === 'trial_expired' ? 'Your free trial has ended.' : st.key === 'canceled' ? 'Your plan was canceled.' : 'Your plan has lapsed.'}</b> Your work is safe and read-only.</span> <a href="#/settings">Choose a plan</a>`;
+    bar.hidden = !html;
+    bar.className = 'acct-bar' + (st.can ? '' : ' stop');
+    bar.innerHTML = html;
   }
 
   async function startApp() {
@@ -240,7 +297,8 @@
       if (menuEl) { closeMenus(); return; }
       openMenu(e.currentTarget, [
         { label: 'Change orders', run: () => go('#/change_orders') }, { label: 'Customers', run: () => go('#/customers') },
-        { label: 'Price book', run: () => go('#/pricebook') }, { label: 'Companies', run: () => go('#/companies') }, { label: 'Settings', run: () => go('#/settings') }]);
+        { label: 'Price book', run: () => go('#/pricebook') }, { label: 'Companies', run: () => go('#/companies') }, { label: 'Settings', run: () => go('#/settings') },
+        ...(S.isAdmin ? [{ label: 'Admin', run: () => go('#/admin') }] : [])]);
     };
     document.addEventListener('click', (e) => { if (menuEl && !menuEl.contains(e.target)) closeMenus(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenus(); });
@@ -262,9 +320,11 @@
       : `<p>${esc(S.user && S.user.email)}</p>`;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql', S.needsUpgrade7 && 'upgrade-7.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : 'uploading your own contract'}.`;
+    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : S.needsUpgrade6 ? 'uploading your own contract' : 'accounts, free trials and your admin panel'}.`;
+    renderAcctBar();
+    $$('[data-nav="admin"]').forEach((x) => (x.hidden = !S.isAdmin));
   }
 
   function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)); }
@@ -380,7 +440,7 @@
     closeMenus();
     closeSuggest();
     const [p, a] = (location.hash.replace(/^#\/?/, '') || 'dashboard').split('/');
-    if (!S.companies.length && !['company', 'settings'].includes(p)) { location.replace('#/company/new'); return; }
+    if (!S.companies.length && !['company', 'settings', 'admin'].includes(p)) { location.replace('#/company/new'); return; }
     const v = $('#view');
     v.className = 'sheet';
     let nav = p;
@@ -390,7 +450,7 @@
     if (p === 'job') nav = 'jobs';
     if (p === 'import') nav = 'settings';
     $$('[data-nav]').forEach((x) => x.classList.toggle('on', x.dataset.nav === nav));
-    $('#moreTab').classList.toggle('on', ['change_orders', 'customers', 'pricebook', 'companies', 'settings'].includes(nav));
+    $('#moreTab').classList.toggle('on', ['change_orders', 'customers', 'pricebook', 'companies', 'settings', 'admin'].includes(nav));
     window.scrollTo(0, 0);
     switch (p) {
       case 'dashboard': return vDashboard(v);
@@ -407,6 +467,7 @@
       case 'settings': return vSettings(v);
       case 'pricebook': return vPriceBook(v);
       case 'import': return vImport(v);
+      case 'admin': return S.isAdmin ? vAdmin(v) : go('#/dashboard');
       default: location.replace('#/dashboard');
     }
   }
@@ -2855,7 +2916,7 @@
       }
 
       status('Copying the website files');
-      const site = ['index.html', 'app.html', 'view.html', 'app.js', 'render.js', 'data.js', 'styles.css', 'config.js'];
+      const site = ['index.html', 'app.html', 'view.html', 'plans.js', 'app.js', 'render.js', 'data.js', 'styles.css', 'config.js'];
       for (const f of site) {
         try { const r = await fetch(f, { cache: 'no-store' }); if (r.ok) zip.file(`site/${f}`, await r.text()); } catch (e) { /* skip */ }
       }
@@ -2889,6 +2950,169 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
   }
 
   // ---------------- Settings ----------------
+  function planSection() {
+    const a = S.account, st = acctState(a), disc = Number(a.discount_percent) || 0;
+    const btn = (k) => { const p = PLANS[k], link = payLink(k), pr = Math.round(p.price * (1 - disc / 100) * 100) / 100;
+      return link ? `<a class="btn ${k === 'yearly' ? 'primary' : ''}" href="${esc(link)}" target="_blank" rel="noopener">${esc(p.name)}: ${money(pr)} a ${p.per}</a>` : ''; };
+    const buttons = btn('monthly') + btn('yearly');
+    return `<section class="set" id="billing">
+      <h2>Your plan</h2>
+      <div class="plan-now"><span class="pill ${st.cls}">${esc(st.label)}</span>
+        <span>${esc(planOf(a).name)} plan, ${money(planPrice(a))} a ${planOf(a).per}${disc ? ` <span class="sub">(${disc}% off${a.discount_note ? ': ' + esc(a.discount_note) : ''})</span>` : ''}</span></div>
+      <p class="sub">${a.status === 'trial' ? `Your free trial ${daysTo(a.trial_ends) < 0 ? 'ended' : 'ends'} on ${esc(fmtDate(a.trial_ends))}.` : a.paid_through ? `Paid through ${esc(fmtDate(a.paid_through))}.` : ''}
+        ${st.can ? '' : ' Your work is safe. You can view and download everything; choose a plan to keep creating and editing.'}</p>
+      ${a.status === 'comped' ? '' : buttons ? `<div class="btn-row">${buttons}</div>` : `<p class="sub">Online payment is coming soon.${PLANS.support ? ' To subscribe now, contact ' + esc(PLANS.support) + '.' : ''}</p>`}
+    </section>`;
+  }
+
+  // ---------------- Admin (only for admins) ----------------
+  function vAdmin(v) {
+    const F = { q: '', st: 'all' };
+    let rows = [];
+    v.innerHTML = `
+      <div class="head"><div><h1>Admin</h1><p class="sub">Every BoltedBid account: sign-ups, trials, plans and payments.</p></div>
+        <div class="btn-row"><button class="btn" id="adCsv">Export CSV</button><button class="btn" id="adRe">Refresh</button></div></div>
+      <div class="ad-kpis" id="adK"><p class="sub">Loading accounts</p></div>
+      <div class="filters"><input type="search" id="adQ" placeholder="Search name, company or email" aria-label="Search accounts">
+        <div class="seg-chips" id="adChips"></div></div>
+      <div class="tbl-wrap"><table class="tbl ad-tbl" id="adT"></table></div>
+      ${S.mode === 'demo' ? '<p class="sub">Demo mode shows sample accounts. Once you\'re signed in on boltedbid.com as the admin, you\'ll see real sign-ups here.</p>' : ''}`;
+    const CHIPS = [['all', 'All'], ['trial', 'On trial'], ['ending', 'Trial ending soon'], ['trial_expired', 'Trial ended'], ['active', 'Paying'], ['past_due', 'Past due or lapsed'], ['comped', 'Comped'], ['canceled', 'Canceled'], ['revoked', 'Revoked']];
+    const match = (a) => {
+      const st = acctState(a).key;
+      if (F.st === 'ending' && !(st === 'trial' && acctState(a).days <= 7)) return false;
+      if (F.st === 'past_due' && !['past_due', 'lapsed'].includes(st)) return false;
+      if (!['all', 'ending', 'past_due'].includes(F.st) && st !== F.st) return false;
+      const q = F.q.toLowerCase();
+      return !q || [a.full_name, a.company_name, a.email].some((x) => String(x || '').toLowerCase().includes(q));
+    };
+    const ago = (iso) => { if (!iso) return 'Never'; const n = Math.round((Date.now() - new Date(iso)) / 86400000); return n <= 0 ? 'Today' : n === 1 ? 'Yesterday' : n < 31 ? `${n} days ago` : fmtDate(iso.slice(0, 10)); };
+    const draw = () => {
+      const st = rows.map((a) => acctState(a));
+      const paying = rows.filter((a, i) => ['active', 'past_due'].includes(st[i].key));
+      const mrr = paying.reduce((s, a) => s + (a.plan === 'yearly' ? planPrice(a) / 12 : planPrice(a)), 0);
+      const week = rows.filter((a) => Date.now() - new Date(a.created_at) < 7 * 86400000).length;
+      const onTrial = st.filter((x) => x.key === 'trial');
+      const ending = onTrial.filter((x) => x.days <= 7).length;
+      const collected = rows.reduce((s, a) => s + Number(a.total_paid || 0), 0);
+      const k = (label, val, sub, f) => `<button class="ad-k ${F.st === f ? 'on' : ''}" data-f="${f || ''}"><span>${label}</span><b>${val}</b><small>${sub || '&nbsp;'}</small></button>`;
+      $('#adK').innerHTML = k('Sign-ups', rows.length, `${week} this week`, 'all')
+        + k('On free trial', onTrial.length, ending ? `${ending} ending within 7 days` : '', 'trial')
+        + k('Paying', paying.length, `${paying.filter((a) => a.plan !== 'yearly').length} monthly · ${paying.filter((a) => a.plan === 'yearly').length} yearly`, 'active')
+        + k('Monthly revenue', money(mrr), `${money(mrr * 12)} a year`, '')
+        + k('Collected', money(collected), 'Payments you recorded', '')
+        + k('Needs attention', st.filter((x) => ['trial_expired', 'past_due', 'lapsed'].includes(x.key)).length, 'Trial ended, past due or lapsed', 'past_due');
+      $$('#adK [data-f]').forEach((b) => { if (b.dataset.f) b.onclick = () => { F.st = b.dataset.f; draw(); }; });
+      $('#adChips').innerHTML = CHIPS.map(([key, l]) => `<button class="chip ${F.st === key ? 'on' : ''}" data-c="${key}">${l}</button>`).join('');
+      $$('#adChips [data-c]').forEach((b) => (b.onclick = () => { F.st = b.dataset.c; draw(); }));
+      const list = rows.filter(match);
+      $('#adT').innerHTML = `<thead><tr><th>Account</th><th>Signed up</th><th>Last active</th><th>Status</th><th>Plan</th><th>Trial ends or paid through</th><th class="n">Estimates</th><th class="n">Invoices</th><th></th></tr></thead>
+        <tbody>${list.map((a) => { const x = acctState(a); return `<tr data-u="${esc(a.user_id)}">
+          <td><b>${esc(a.full_name || a.email || 'No name')}</b><div class="sub">${esc(a.company_name || '')}${a.company_name ? ' · ' : ''}${esc(a.email || '')}${a.email_confirmed === false ? ' · <span class="warn">email not confirmed</span>' : ''}</div></td>
+          <td>${esc(fmtDate(String(a.created_at).slice(0, 10)))}</td>
+          <td>${esc(ago(a.last_activity || a.last_sign_in_at))}</td>
+          <td><span class="pill ${x.cls}">${esc(x.label)}</span></td>
+          <td>${esc(planOf(a).name)} · ${money(planPrice(a))}${Number(a.discount_percent) ? ` <span class="sub">−${Number(a.discount_percent)}%</span>` : ''}</td>
+          <td>${a.status === 'trial' ? esc(fmtDate(a.trial_ends)) : a.paid_through ? esc(fmtDate(a.paid_through)) : '<span class="sub">–</span>'}</td>
+          <td class="n">${num(a.estimates || 0)}</td><td class="n">${num(a.invoices || 0)}</td>
+          <td class="n"><button class="btn" data-m="${esc(a.user_id)}">Manage</button></td></tr>`; }).join('') || `<tr><td colspan="9" class="sub">No accounts match.</td></tr>`}</tbody>`;
+      $$('#adT [data-m]').forEach((b) => (b.onclick = () => manage(rows.find((a) => a.user_id === b.dataset.m))));
+    };
+    const load = async () => {
+      try { rows = await Store.adminAccounts(); draw(); }
+      catch (e) { $('#adK').innerHTML = `<p class="err">Could not load accounts: ${esc(e.message)}${/admin/i.test(e.message) ? '' : '. If you haven\'t yet, run upgrade-7.sql in Supabase.'}</p>`; }
+    };
+    $('#adQ').oninput = (e) => { F.q = e.target.value; draw(); };
+    $('#adRe').onclick = load;
+    $('#adCsv').onclick = () => {
+      const cols = ['full_name', 'company_name', 'email', 'created_at', 'status', 'plan', 'trial_ends', 'paid_through', 'discount_percent', 'discount_note', 'estimates', 'invoices', 'total_paid', 'last_sign_in_at', 'notes'];
+      const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
+      const csv = [cols.concat('access').join(','), ...rows.map((a) => cols.map((c) => q(a[c])).concat(q(acctState(a).label)).join(','))].join('\n');
+      saveBlob(new Blob([csv], { type: 'text/csv' }), `BoltedBid accounts ${D.today()}.csv`);
+    };
+
+    function manage(a) {
+      let pays = [];
+      const today = D.today();
+      modal(`<div class="pv-head"><h2>${esc(a.full_name || a.email)}</h2><div class="btn-row"><button class="btn" data-close>Close</button></div></div>
+        <p class="sub">${esc(a.company_name || '')}${a.company_name ? ' · ' : ''}${esc(a.email || '')} · signed up ${esc(fmtDate(String(a.created_at).slice(0, 10)))} · ${num(a.estimates || 0)} estimates, ${num(a.invoices || 0)} invoices</p>
+        <div class="ad-m">
+          <section><h3>Access</h3>
+            <div class="grid2">
+              <label>Status<select id="mSt">${[['trial', 'Free trial'], ['active', 'Paying'], ['comped', 'Comped (free, no end date)'], ['past_due', 'Past due'], ['canceled', 'Canceled'], ['revoked', 'Revoked (paused)']].map(([k, l]) => `<option value="${k}" ${a.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+              <label>Plan<select id="mPl"><option value="monthly" ${a.plan !== 'yearly' ? 'selected' : ''}>Monthly, ${money(PLANS.monthly.price)}</option><option value="yearly" ${a.plan === 'yearly' ? 'selected' : ''}>Yearly, ${money(PLANS.yearly.price)}</option></select></label>
+              <label>Trial ends<input type="date" id="mTr" value="${esc(a.trial_ends || '')}"></label>
+              <label>Paid through<input type="date" id="mPt" value="${esc(a.paid_through || '')}"></label>
+            </div>
+            <div class="btn-row"><span class="sub">Extend trial:</span><button class="btn subtle" data-x="7">+7 days</button><button class="btn subtle" data-x="14">+14 days</button><button class="btn subtle" data-x="30">+30 days</button></div>
+            <div class="btn-row">${a.status === 'revoked' ? '<button class="btn" id="mRestore">Restore access</button>' : '<button class="btn danger" id="mRevoke">Revoke access</button>'}<button class="btn" id="mComp">Comp (free)</button></div>
+            <p class="sub">Revoked, canceled, ended-trial and lapsed accounts become read-only: they can sign in, view and download, but not create or change anything. Their customers' links keep working.</p>
+          </section>
+          <section><h3>Discount</h3>
+            <div class="grid2"><label>Discount %<input type="number" id="mDi" min="0" max="100" step="1" value="${Number(a.discount_percent) || 0}"></label><label>Reason<input id="mDn" value="${esc(a.discount_note || '')}" placeholder="Founding customer"></label></div>
+            <p class="sub" id="mPrice"></p>
+          </section>
+          <section><h3>Payments</h3>
+            <div class="grid4"><label>Amount<input type="number" id="pAm" step="0.01" min="0"></label><label>Paid on<input type="date" id="pOn" value="${today}"></label>
+              <label>Method<select id="pMe"><option>Card</option><option>Check</option><option>Cash</option><option>Zelle</option><option>Venmo</option><option>Bank transfer</option><option>Other</option></select></label>
+              <label>&nbsp;<button class="btn primary" id="pAdd" type="button">Record payment</button></label></div>
+            <p class="sub">Recording a payment marks them Paying and moves "Paid through" ahead one month or one year, depending on the plan.</p>
+            <div id="pList"></div>
+          </section>
+          <section><h3>Private notes</h3><textarea id="mNo" rows="3" placeholder="Only you can see these">${esc(a.notes || '')}</textarea></section>
+        </div>
+        <div class="btn-row" style="justify-content:flex-end"><button class="btn primary" id="mSave">Save changes</button></div>`, (w, close) => {
+        const val = (id) => $('#' + id, w).value;
+        const price = () => { const p = PLANS[val('mPl')] || PLANS.monthly, d = Math.min(100, Math.max(0, Number(val('mDi')) || 0)), pr = Math.round(p.price * (1 - d / 100) * 100) / 100;
+          $('#mPrice', w).textContent = `Their price: ${money(pr)} a ${p.per}${d ? ` (${d}% off ${money(p.price)})` : ''}.`; $('#pAm', w).value = pr.toFixed(2); };
+        price();
+        ['mPl', 'mDi'].forEach((id) => ($('#' + id, w).oninput = price));
+        const save = async (patch, msg) => {
+          try {
+            const up = await Store.adminUpdate(a.user_id, patch);
+            Object.assign(a, up); toast(msg || 'Saved'); draw(); return true;
+          } catch (e) { toast('Could not save: ' + e.message, { type: 'error', ms: 8000 }); return false; }
+        };
+        $$('[data-x]', w).forEach((b) => (b.onclick = () => {
+          const base = val('mTr') && val('mTr') > today ? val('mTr') : today;
+          const d = new Date(base + 'T12:00:00'); d.setDate(d.getDate() + Number(b.dataset.x));
+          $('#mTr', w).value = d.toISOString().slice(0, 10); $('#mSt', w).value = 'trial';
+        }));
+        const rv = $('#mRevoke', w), rs = $('#mRestore', w);
+        if (rv) rv.onclick = async () => { if (confirm(`Revoke access for ${a.full_name || a.email}? Their account becomes read-only until you restore it.`) && await save({ status: 'revoked' }, 'Access revoked')) close(); };
+        if (rs) rs.onclick = async () => { const back = a.paid_through && a.paid_through >= today ? 'active' : a.trial_ends >= today ? 'trial' : 'active'; if (await save({ status: back }, 'Access restored')) close(); };
+        $('#mComp', w).onclick = async () => { if (await save({ status: 'comped' }, 'Comped: free access with no end date')) close(); };
+        const drawPays = () => {
+          $('#pList', w).innerHTML = pays.length ? `<table class="tbl"><thead><tr><th>Paid on</th><th>Period</th><th>Method</th><th class="n">Amount</th><th></th></tr></thead><tbody>${pays.map((p) => `<tr><td>${esc(fmtDate(p.paid_on))}</td><td>${p.period_start ? esc(fmtDate(p.period_start)) + ' to ' + esc(fmtDate(p.period_end)) : ''}</td><td>${esc(p.method || '')}</td><td class="n">${money(p.amount)}</td><td class="n"><button class="link small" data-rp="${esc(p.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="sub">No payments recorded yet.</p>';
+          $$('[data-rp]', w).forEach((b) => (b.onclick = async () => {
+            if (!confirm('Remove this payment record? Paid through stays as it is.')) return;
+            try { await Store.adminRemovePayment(b.dataset.rp); pays = pays.filter((p) => p.id !== b.dataset.rp); a.total_paid = pays.reduce((s, p) => s + Number(p.amount), 0); drawPays(); draw(); } catch (e) { toast(e.message, { type: 'error' }); }
+          }));
+        };
+        Store.adminPayments(a.user_id).then((p) => { pays = p; drawPays(); }, () => { $('#pList', w).innerHTML = '<p class="sub">Payments could not be loaded.</p>'; });
+        $('#pAdd', w).onclick = async () => {
+          const amount = Number(val('pAm'));
+          if (!(amount > 0)) { toast('Enter the amount paid.', { type: 'error' }); return; }
+          const plan = val('mPl');
+          const cur = val('mPt');
+          const start = cur && cur >= today ? (() => { const d = new Date(cur + 'T12:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })() : (val('pOn') || today);
+          const end = addPeriod(start, plan);
+          try {
+            const p = await Store.adminAddPayment({ user_id: a.user_id, amount, plan, period_start: start, period_end: end, method: val('pMe'), paid_on: val('pOn') || today });
+            pays.unshift(p); a.total_paid = Number(a.total_paid || 0) + amount;
+            await save({ status: 'active', plan, paid_through: end }, `Payment recorded. Paid through ${fmtDate(end)}.`);
+            $('#mPt', w).value = end; $('#mSt', w).value = 'active'; drawPays();
+          } catch (e) { toast('Could not record the payment: ' + e.message, { type: 'error', ms: 8000 }); }
+        };
+        $('#mSave', w).onclick = async () => {
+          const d = Math.min(100, Math.max(0, parseInt(val('mDi'), 10) || 0));
+          if (await save({ status: val('mSt'), plan: val('mPl'), trial_ends: val('mTr') || today, paid_through: val('mPt') || null, discount_percent: d, discount_note: val('mDn').trim() || null, notes: val('mNo').trim() || null })) close();
+        };
+      }, 'wide');
+    }
+    load();
+  }
+
   function vSettings(v) {
     const perm = 'Notification' in window ? Notification.permission : 'unsupported';
     const notif = {
@@ -2907,6 +3131,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
         <p class="sub">Upload your own contract (PDF) for customers to sign after they accept an estimate. Each company can have its own.</p>
         <div class="set-list">${S.companies.map((c) => `<div class="set-row"><div><b>${esc(c.name)}</b><div class="sub">${kStatus(c)}</div></div><a class="btn" href="#/company/${c.id}">Set up contract</a></div>`).join('')}</div>
       </section>
+      ${S.mode === 'cloud' && S.account && !S.isAdmin ? planSection() : ''}
       <section class="set">
         <h2>Account</h2>
         ${S.mode === 'demo'

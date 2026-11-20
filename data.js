@@ -15,6 +15,8 @@
       if (!d) { d = seed(); this.save(d); }
       ['companies', 'customers', 'documents', 'payments', 'events', 'items', 'photos', 'jobs'].forEach((k) => { if (!d[k]) d[k] = []; });
       d.companies.forEach((c) => { if (c.contract_after_accept === undefined) c.contract_after_accept = true; });
+      if (!d.accounts) d.accounts = demoAccounts();
+      if (!d.account_payments) d.account_payments = [];
       return d;
     },
     save(d) {
@@ -134,8 +136,43 @@
       return { path: null, url };
     },
     onEvent(cb) { window.addEventListener('storage', (e) => { if (e.key === this.key) cb(); }); },
-    async signOut() {}
+    async signOut() {},
+    // Accounts and the admin panel (demo: sample sign-ups, and you are the admin)
+    async myAccount() { return { account: { user_id: 'demo', status: 'comped', plan: 'monthly', discount_percent: 0 }, admin: true }; },
+    async adminAccounts() {
+      const d = this.db();
+      return d.accounts.map((a) => ({ ...a,
+        total_paid: d.account_payments.filter((p) => p.user_id === a.user_id).reduce((s, p) => s + Number(p.amount || 0), 0) }));
+    },
+    async adminUpdate(userId, patch) {
+      const d = this.db(); const a = d.accounts.find((x) => x.user_id === userId);
+      if (!a) throw new Error('Account not found');
+      Object.assign(a, patch, { updated_at: new Date().toISOString() }); this.save(d); return a;
+    },
+    async adminPayments(userId) { return this.db().account_payments.filter((p) => p.user_id === userId).sort((a, b) => (a.paid_on < b.paid_on ? 1 : -1)); },
+    async adminAddPayment(p) { const d = this.db(); const row = { ...p, id: uid(), created_at: new Date().toISOString() }; d.account_payments.push(row); this.save(d); return row; },
+    async adminRemovePayment(id) { const d = this.db(); d.account_payments = d.account_payments.filter((p) => p.id !== id); this.save(d); }
   };
+
+  function demoAccounts() {
+    const day = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+    const ago = (n) => new Date(Date.now() - n * 86400000).toISOString();
+    const row = (id, full_name, company_name, email, o) => ({ user_id: id, full_name, company_name, email, plan: 'monthly', status: 'trial', trial_ends: day(20), paid_through: null, discount_percent: 0, discount_note: '', notes: '', created_at: ago(10), last_sign_in_at: ago(1), email_confirmed: true, companies: 1, estimates: 4, invoices: 2, last_activity: ago(1), ...o });
+    return [
+      row('a1', 'Mike Duarte', 'Duarte Roofing', 'mike@duarteroofing.example', { created_at: ago(2), trial_ends: day(28), estimates: 1, invoices: 0, last_activity: ago(0.2), last_sign_in_at: ago(0.2) }),
+      row('a2', 'Sarah Kim', 'Kim Painting Co.', 'sarah@kimpainting.example', { created_at: ago(25), trial_ends: day(5), estimates: 9, invoices: 3, plan: 'yearly' }),
+      row('a3', 'Tony Alves', 'Alves Carpentry', 'tony@alvescarpentry.example', { created_at: ago(70), status: 'active', paid_through: day(21), estimates: 31, invoices: 18 }),
+      row('a4', 'Jen Walsh', 'Walsh Remodeling', 'jen@walshremodeling.example', { created_at: ago(140), status: 'active', plan: 'yearly', paid_through: day(225), estimates: 64, invoices: 40, discount_percent: 10, discount_note: 'Founding customer' }),
+      row('a5', 'Luis Ortega', 'Ortega Concrete', 'luis@ortegaconcrete.example', { created_at: ago(40), trial_ends: day(-10), estimates: 2, invoices: 0, last_sign_in_at: ago(12), last_activity: ago(15) }),
+      row('a6', 'Dana Price', 'Price Electric', 'dana@priceelectric.example', { created_at: ago(95), status: 'active', paid_through: day(-6), estimates: 22, invoices: 15 }),
+      row('a7', 'Rob Lee', 'Lee Handyman', 'rob@leehandyman.example', { created_at: ago(30), status: 'comped', notes: 'Beta tester, free for a year', estimates: 12, invoices: 8 }),
+      row('a8', 'Chris Hall', 'Hall Builders', 'chris@hallbuilders.example', { created_at: ago(60), status: 'revoked', notes: 'Chargeback', estimates: 3, invoices: 1 })
+    ];
+  }
+
+  // When an account's trial has ended or access was paused, the database refuses changes.
+  const LOCKED = 'Your BoltedBid account is read-only right now (your free trial ended or your plan is paused). You can still view and download everything. Choose a plan in Settings to keep working.';
+  const locked = (e) => (e && (e.code === '42501' || /row-level security/i.test(e.message || '')) ? new Error(LOCKED) : e);
 
   // ---------------- Supabase ----------------
   const Remote = {
@@ -168,6 +205,38 @@
       if (error) throw error;
     },
     async signOut() { await this.sb.auth.signOut(); },
+    async myAccount() {
+      const { data: s } = await this.sb.auth.getSession();
+      if (!s.session) return { account: null, admin: false, missing: false };
+      const r = await this.sb.from('accounts').select('*').eq('user_id', s.session.user.id).maybeSingle();
+      if (r.error) return { account: null, admin: false, missing: /relation|does not exist|schema cache/i.test(r.error.message) };
+      const ad = await this.sb.rpc('is_admin');
+      return { account: r.data, admin: !ad.error && ad.data === true, missing: false };
+    },
+    async adminAccounts() {
+      const { data, error } = await this.sb.rpc('admin_accounts');
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    async adminUpdate(userId, patch) {
+      const { data, error } = await this.sb.from('accounts').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', userId).select().single();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    async adminPayments(userId) {
+      const { data, error } = await this.sb.from('account_payments').select('*').eq('user_id', userId).order('paid_on', { ascending: false });
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    async adminAddPayment(p) {
+      const { data, error } = await this.sb.from('account_payments').insert(p).select().single();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    async adminRemovePayment(id) {
+      const { error } = await this.sb.from('account_payments').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    },
     async list(t) {
       const { data, error } = await this.sb.from(t).select('*').order('created_at', { ascending: true });
       if (error) throw error;
@@ -179,12 +248,13 @@
       if (t === 'documents' || t === 'items') o.updated_at = new Date().toISOString();
       const q = o.id ? this.sb.from(t).update(o).eq('id', o.id) : this.sb.from(t).insert(o);
       const { data, error } = await q.select().single();
-      if (error) throw error;
+      if (error) throw locked(error);
       return data;
     },
     async remove(t, id) {
-      const { error } = await this.sb.from(t).delete().eq('id', id);
-      if (error) throw error;
+      const { error, count } = await this.sb.from(t).delete({ count: 'exact' }).eq('id', id);
+      if (error) throw locked(error);
+      if (count === 0 && t !== 'events') throw new Error(LOCKED);
     },
     async getPublic(tok, record = true) {
       const { data, error } = await this.sb.rpc('get_public_document', { p_token: tok, p_record: record });
