@@ -3,7 +3,7 @@
   "short_name": "BoltedBid",
   "description": "Estimates, change orders, invoices and jobs for your business.",
   "id": "./",
-  "start_url": "./index.html#/dashboard",
+  "start_url": "./app.html#/dashboard",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

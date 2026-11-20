@@ -2,7 +2,7 @@
 // Your own files are always fetched fresh when online (so updates show right away);
 // the saved copy is only used when there's no connection.
 const CACHE = 'boltedbid-v7';
-const SHELL = ['./', './index.html', './app.js', './render.js', './data.js', './importer.js', './contract.js', './styles.css', './config.js', './manifest.webmanifest', './icons/icon-192.png'];
+const SHELL = ['./', './index.html', './app.html', './app.js', './render.js', './data.js', './importer.js', './contract.js', './styles.css', './config.js', './manifest.webmanifest', './icons/icon-192.png'];
 const LIBS = /(^|\.)(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 
 self.addEventListener('install', (e) => {
@@ -36,7 +36,7 @@ self.addEventListener('fetch', (e) => {
   // Opening a page: let the browser handle it, so moved addresses (like a new domain) forward
   // normally. The saved app only opens when there's no connection.
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match('./index.html'))));
+    e.respondWith(fetch(req).catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match('./app.html'))));
     return;
   }
 
@@ -47,6 +47,6 @@ self.addEventListener('fetch', (e) => {
         if (res.ok && !res.redirected) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(url.pathname + url.search, copy)); }
         return res;
       })
-      .catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match(req)).then((hit) => hit || caches.match('./index.html')))
+      .catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match(req)).then((hit) => hit || caches.match('./app.html')))
   );
 });

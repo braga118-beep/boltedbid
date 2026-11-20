@@ -18,6 +18,7 @@
     if (S.needsUpgrade2 && t === 'documents') { o = { ...o }; ['job_id', 'contract'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade2 && t === 'companies') { o = { ...o }; ['change_order_prefix', 'next_change_order_no'].forEach((k) => delete o[k]); }
     if (S.needsUpgrade3 && t === 'companies') { o = { ...o }; ['hic_no', 'csl_no', 'ri_reg_no', 'primary_state', 'signer_name', 'salesperson', 'insurance_amount', 'warranty_term', 'work_hours', 'contractor_signature', 'contract_enabled', 'arbitration_enabled', 'contract_extra', 'start_window'].forEach((k) => delete o[k]); }
+    if ((S.needsUpgrade3 || S.needsUpgrade6) && t === 'companies') { o = { ...o }; ['contract_mode', 'contract_file_url', 'contract_file_name', 'contract_file_pages', 'contract_file_size', 'contract_file_sha256', 'contract_file_uploaded_at'].forEach((k) => delete o[k]); }
     if ((S.needsUpgrade3 || S.needsUpgrade4) && t === 'documents') { o = { ...o }; delete o.contract_requested_at; }
     if (S.needsUpgrade3 && t === 'documents') { o = { ...o }; ['start_date', 'completion_date', 'duration_text', 'contract_state', 'signature'].forEach((k) => delete o[k]); }
     return baseUpsert(t, o);
@@ -156,6 +157,8 @@
 
   // ---------------- Boot ----------------
   async function boot() {
+    // A "reset your password" email link opens the app with type=recovery in the address.
+    const recovering = /type=recovery/.test(location.hash);
     try {
       const r = await Store.init();
       S.mode = r.mode; S.user = r.user;
@@ -163,8 +166,33 @@
       document.body.innerHTML = `<p class="fatal">BoltedBid could not connect to the database. Check the values in config.js. (${esc(e.message)})</p>`;
       return;
     }
+    if (S.mode === 'cloud' && recovering && S.user) return renderNewPassword();
+    if (/access_token=|type=signup/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/dashboard');
     if (S.mode === 'cloud' && !S.user) return renderAuth();
     startApp();
+  }
+
+  function renderNewPassword() {
+    history.replaceState(null, '', location.pathname);
+    $('#app').hidden = true;
+    const a = $('#auth');
+    a.hidden = false;
+    a.innerHTML = `
+      <div class="auth-card">
+        <div class="brand"><span class="mark"></span><span>Bolted<b>Bid</b></span></div>
+        <h1>Choose a new password</h1>
+        <form id="np">
+          <label>New password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+          <button class="btn primary wide" type="submit">Save password</button>
+        </form>
+        <p class="err" id="npMsg"></p>
+      </div>`;
+    $('#np').onsubmit = async (e) => {
+      e.preventDefault();
+      const b = $('button', e.target); b.disabled = true;
+      try { await Store.updatePassword(new FormData(e.target).get('password')); toast('Password saved'); startApp(); }
+      catch (err) { $('#npMsg').textContent = err.message; b.disabled = false; }
+    };
   }
 
   async function loadAll() {
@@ -177,6 +205,7 @@
     S.needsUpgrade3 = S.mode === 'cloud' && companies.length > 0 && !('start_window' in companies[0]);
     S.needsUpgrade4 = S.mode === 'cloud' && !S.needsUpgrade3 && documents.length > 0 && !('contract_requested_at' in documents[0]);
     S.needsUpgrade5 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_after_accept' in companies[0]);
+    S.needsUpgrade6 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_mode' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
   }
 
@@ -233,9 +262,9 @@
       : `<p>${esc(S.user && S.user.email)}</p>`;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : 'showing the contract to sign after your customer accepts'}.`;
+    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : 'uploading your own contract'}.`;
   }
 
   function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)); }
@@ -312,9 +341,16 @@
           <button class="btn primary wide" type="submit">${mode === 'in' ? 'Sign in' : 'Create account'}</button>
         </form>
         <p class="${ok ? 'ok' : 'err'}">${esc(msg)}</p>
-        <p class="sub">${mode === 'in' ? 'No account yet?' : 'Already have an account?'} <button class="link" id="sw">${mode === 'in' ? 'Create one' : 'Sign in'}</button></p>
+        <p class="sub">${mode === 'in' ? 'No account yet?' : 'Already have an account?'} <button class="link" id="sw">${mode === 'in' ? 'Start your free trial' : 'Sign in'}</button></p>
+        ${mode === 'in' ? '<p class="sub"><button class="link" id="fp">Forgot your password?</button></p>' : ''}
+        <p class="sub"><a href="./">&larr; boltedbid.com</a></p>
       </div>`;
       $('#sw').onclick = () => { mode = mode === 'in' ? 'up' : 'in'; draw(); };
+      if ($('#fp')) $('#fp').onclick = async () => {
+        const email = $('#af input[name=email]').value.trim();
+        if (!email) { draw('Type your email above first, then tap "Forgot your password?" again.'); return; }
+        try { await Store.resetPassword(email); draw('Check your email for a link to choose a new password.', true); } catch (err) { draw(err.message); }
+      };
       $('#af').onsubmit = async (e) => {
         e.preventDefault();
         const f = new FormData(e.target);
@@ -2317,20 +2353,21 @@
   function signRail(d) {
     const co = company(d.company_id) || {};
     if (S.needsUpgrade3) return '<div class="rail-box"><h3>Contract</h3><p class="sub">Run upgrade-3.sql in Supabase to turn on contracts and e-signatures.</p></div>';
-    if (!co.contract_enabled) return `<div class="rail-box"><h3>Contract</h3><p class="sub">Customers accept by typing their name. To have them sign your home improvement contract instead, turn on contracts in <a href="#/company/${co.id}">your company profile</a>.</p></div>`;
+    if (!co.contract_enabled) return `<div class="rail-box"><h3>Contract</h3><p class="sub">Customers accept by typing their name. To have them sign your contract too, turn on contracts in <a href="#/company/${co.id}">your company profile</a>.</p></div>`;
     const sig = d.signature;
+    const up = window.Contract.isUpload(sig && sig.company ? sig.company : co);
     if (sig) {
       const signed = new Date(sig.signed_at);
       return `<div class="rail-box"><h3>Contract</h3>
         <div class="k-status"><span class="ok">Signed by ${esc(sig.name)}</span>
-        <span class="sub">${esc(signed.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}, ${esc(sig.state || window.Contract.contractState(sig.document || d, sig.company || co).state)} contract${sig.arbitration_image ? ', arbitration signed' : ''}${sig.no_photos ? ', no portfolio photos' : ''}</span>
-        <span class="sub">Cancellation period ends at midnight, ${esc(window.Contract.addBusinessDays(signed, 3).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}. Don't start work before then.</span></div>
+        <span class="sub">${esc(signed.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }))}, ${up ? 'your contract' + (sig.company && sig.company.contract_file_name ? ' (' + esc(sig.company.contract_file_name) + ')' : '') : esc(sig.state || window.Contract.contractState(sig.document || d, sig.company || co).state) + ' contract'}${sig.arbitration_image ? ', arbitration signed' : ''}${sig.no_photos ? ', no portfolio photos' : ''}</span>
+        ${up ? '' : `<span class="sub">Cancellation period ends at midnight, ${esc(window.Contract.addBusinessDays(signed, 3).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }))}. Don't start work before then.</span>`}</div>
         <div class="btn-row"><button class="btn" data-act="kview">View contract</button><button class="btn" data-act="kpdf">Download PDF</button><button class="btn" data-act="ksend">Send copy</button></div>
         ${E && E.dirty ? '<p class="sub">Changes to the estimate after signing don\'t change the signed contract. Use a change order.</p>' : ''}</div>`;
     }
     const st = window.Contract.contractState(d, co);
     const miss = window.Contract.issues(d, co);
-    const stateSel = `<label class="k-state">Contract state<select data-f="contract_state"><option value="" ${!d.contract_state ? 'selected' : ''}>Automatic (${st.state})</option><option value="MA" ${d.contract_state === 'MA' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${d.contract_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select></label>
+    const stateSel = up ? `<p class="sub">Your contract: ${co.contract_file_url ? esc(co.contract_file_name || 'uploaded PDF') : 'not uploaded yet'}. <a href="#/company/${co.id}">Change</a></p>` : `<label class="k-state">Contract state<select data-f="contract_state"><option value="" ${!d.contract_state ? 'selected' : ''}>Automatic (${st.state})</option><option value="MA" ${d.contract_state === 'MA' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${d.contract_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select></label>
       <p class="sub">${esc(st.from)}.</p>`;
     // Accepted before contracts were turned on: send the contract on its own to sign.
     if (['accepted', 'converted'].includes(d.status)) {
@@ -2344,7 +2381,7 @@
         <div class="btn-row"><button class="btn" data-act="kview">Preview contract</button><button class="btn primary" data-act="kreq" ${miss.length ? 'disabled' : ''}>Send &amp; Resend Contract</button></div></div>`;
     }
     const t = totals(d), first = D.scheduleAmounts(d)[0];
-    const capWarn = st.state === 'MA' && first && t.total > 0 && first.amount > t.total / 3 + 0.01
+    const capWarn = !up && st.state === 'MA' && first && t.total > 0 && first.amount > t.total / 3 + 0.01
       ? `<p class="sched-warn">The first payment (${money(first.amount)}) is more than one-third of the total. Massachusetts limits what you can collect before work starts.</p>` : '';
     return `<div class="rail-box"><h3>Contract</h3>
       ${stateSel}
@@ -2359,7 +2396,7 @@
     modal(`<div class="pv-head"><h2>${d.signature ? 'Signed contract' : 'Contract preview'} ${esc(d.number)}</h2>
       <div class="btn-row"><button class="btn" id="kp">Download PDF</button><button class="btn" data-close>Close</button></div></div>
       ${d.signature ? '' : '<p class="note">This is how the contract will look. Your customer signs it on their estimate page.</p>'}
-      <div class="pv-body">${window.Contract.render(ctx)}</div>`, (w) => { $('#kp', w).onclick = () => contractPdf(d); }, 'wide');
+      <div class="pv-body">${window.Contract.render(ctx)}</div>`, (w) => { $('#kp', w).onclick = () => contractPdf(d); window.Contract.mount(w); }, 'wide');
   }
   async function contractPdf(d) {
     toast('Preparing the contract PDF', { ms: 1800 });
@@ -2391,7 +2428,7 @@
     const miss = window.Contract.issues(d, co);
     if (miss.length) { toast('Add the missing contract details first: ' + miss.join(', '), { type: 'error', ms: 8000 }); return; }
     const again = !!d.contract_requested_at;
-    const msg = `Hi ${firstName(d.customer_name)},\n\nThank you for choosing ${co.name || 'us'}. Please review and sign the home improvement contract for your project${d.job_title ? ' (' + d.job_title + ')' : ''}, estimate ${d.number}, here:\n${customerLink(d)}\n\nIt only takes a minute: read the contract, then sign at the bottom with your finger or mouse. You can download a signed copy right after.\n\nThank you,\n${co.signer_name || co.name || ''}`;
+    const msg = `Hi ${firstName(d.customer_name)},\n\nThank you for choosing ${co.name || 'us'}. Please review and sign the contract for your project${d.job_title ? ' (' + d.job_title + ')' : ''}, estimate ${d.number}, here:\n${customerLink(d)}\n\nIt only takes a minute: read the contract, then sign at the bottom with your finger or mouse. You can download a signed copy right after.\n\nThank you,\n${co.signer_name || co.name || ''}`;
     modal(`<h2>${again ? 'Resend' : 'Send'} the contract to sign</h2><p class="sub">Your customer opens their estimate link, reads the contract and signs it online. You're notified when they sign.${again ? ` Last sent ${esc(fmtDate(d.contract_requested_at))}.` : ''}</p>
       <label>To<input id="krTo" type="email" value="${esc(d.customer_email || '')}"></label>
       <label>Message<textarea id="krMsg" rows="9">${esc(msg)}</textarea></label>
@@ -2588,30 +2625,56 @@
         <section>
           <h2>Contact details</h2>
           <div class="grid2">${f('phone', 'Phone', 'tel')}${f('email', 'Email', 'email')}${f('website', 'Website')}${f('license_no', 'License number')}${f('tax_id', 'Tax ID')}</div>
-          ${ta('address', 'Address', 'Street address, not a P.O. box. Massachusetts and Rhode Island contracts require it.')}
+          ${ta('address', 'Address', 'Street address, not a P.O. box. Shown on your estimates, invoices and contract.')}
         </section>
-        ${S.needsUpgrade3 ? '<section><h2>Contract and licenses</h2><p class="sub">Run upgrade-3.sql in Supabase to turn on contracts and e-signatures.</p></section>' : `
+        ${S.needsUpgrade3 ? '<section><h2>Contract</h2><p class="sub">Run upgrade-3.sql in Supabase to turn on contracts and e-signatures.</p></section>' : `
         <section>
-          <h2>Contract and licenses</h2>
-          <p class="sub">When this is on, customers read and sign your home improvement contract on their estimate page when they accept. Massachusetts or Rhode Island wording is chosen from the job address; if the address has no state, the license you list first is used.</p>
-          <label class="check"><input type="checkbox" name="contract_enabled" ${c.contract_enabled ? 'checked' : ''}> Customers sign the contract when they accept an estimate</label>
+          <h2>Contract</h2>
+          <p class="sub">When this is on, your customer accepts the estimate, then reads and signs your contract on the same page. BoltedBid adds a signature page with the customer, job address, estimate number and price, and attaches the estimate.</p>
+          <label class="check"><input type="checkbox" name="contract_enabled" ${c.contract_enabled ? 'checked' : ''}> Customers sign a contract after they accept an estimate</label>
+          ${S.needsUpgrade6 ? '<p class="sub">Run <b>upgrade-6.sql</b> in Supabase to upload your own contract.</p>' : `
+          <div class="k-mode" role="radiogroup" aria-label="Which contract">
+            <label><input type="radio" name="contract_mode" value="upload" ${c.contract_mode !== 'builtin' ? 'checked' : ''}><span>My own contract<small>Upload your contract as a PDF. Works in any state.</small></span></label>
+            <label><input type="radio" name="contract_mode" value="builtin" ${c.contract_mode === 'builtin' ? 'checked' : ''}><span>Built-in template<small>Massachusetts and Rhode Island home improvement contract.</small></span></label>
+          </div>
+          <div id="kUploadBox" class="k-upbox">
+            <div><div class="k-file" id="kFile"></div><input type="file" id="kFileIn" accept="application/pdf,.pdf" hidden></div>
+            <aside class="k-tips">
+              <h3>For the best results</h3>
+              <ul>
+                <li><b>PDF only</b>, up to 10 MB, all pages in one file.</li>
+                <li>Save it from Word or Google Docs (File, then Download or Save as PDF) instead of scanning, so the text stays sharp on a phone.</li>
+                <li>Letter size (8.5 × 11 in), portrait.</li>
+                <li>Only have paper? Scan at 300 dpi in black and white or grayscale. Avoid phone photos of pages.</li>
+                <li>No password or "protected" PDFs.</li>
+                <li>No need to fill in the customer, price or dates. Refer to "the attached estimate"; BoltedBid adds those details on the signature page.</li>
+                <li>Make sure it includes what your state requires, such as a notice of the customer's right to cancel. Have your attorney review it.</li>
+              </ul>
+            </aside>
+          </div>`}
           <div class="grid2">
-            <label>License listed first<select name="primary_state"><option value="MA" ${c.primary_state !== 'RI' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${c.primary_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select><span class="hint">Used when a job address has no state.</span></label>
-            ${f('hic_no', 'MA HIC registration number')}
-            ${f('csl_no', 'MA CSL number (if any)')}
-            ${f('ri_reg_no', 'RI contractor registration number')}
             ${f('signer_name', 'Signed for the company by', 'text', 'placeholder="Full name"')}
-            ${f('salesperson', 'Salesperson', 'text', 'placeholder="None"')}
-            ${f('insurance_amount', 'General liability insurance per occurrence', 'text', 'placeholder="$1,000,000"')}
-            ${f('warranty_term', 'Workmanship warranty', 'text', 'placeholder="1 year"')}
-            ${f('work_hours', 'Working days and hours', 'text', 'placeholder="Monday to Friday, 7 AM to 5 PM"')}
-            ${f('start_window', 'Start is scheduled within', 'text', 'placeholder="2 to 4 weeks after this contract is signed"')}
           </div>
           <label>Your signature<span class="hint">Drawn once and added to every contract as the contractor's signature.</span></label>
           <div class="sig-field" id="sigField"></div>
-          <label class="check"><input type="checkbox" name="arbitration_enabled" ${c.arbitration_enabled !== false ? 'checked' : ''}> Offer the optional contractor arbitration agreement on Massachusetts contracts</label>
-          ${ta('contract_extra', 'Additional contract terms (optional)', 'Added as section 20 of every contract. Leave empty if you have none.')}
-          <p class="sub">The booking deposit and payment plan come from the payment schedule below. No start or completion dates are needed: the contract states your start window, and you confirm the actual start date with the customer in writing. Add an optional projected duration (for example \"3 to 4 weeks\") on each estimate.</p>
+          <div id="kBuiltinBox">
+            <h3 class="k-subhead">Built-in template details</h3>
+            <p class="sub">Massachusetts or Rhode Island wording is chosen from the job address; if the address has no state, the license listed first is used.</p>
+            <div class="grid2">
+              <label>License listed first<select name="primary_state"><option value="MA" ${c.primary_state !== 'RI' ? 'selected' : ''}>Massachusetts</option><option value="RI" ${c.primary_state === 'RI' ? 'selected' : ''}>Rhode Island</option></select></label>
+              ${f('hic_no', 'MA HIC registration number')}
+              ${f('csl_no', 'MA CSL number (if any)')}
+              ${f('ri_reg_no', 'RI contractor registration number')}
+              ${f('salesperson', 'Salesperson', 'text', 'placeholder="None"')}
+              ${f('insurance_amount', 'General liability insurance per occurrence', 'text', 'placeholder="$1,000,000"')}
+              ${f('warranty_term', 'Workmanship warranty', 'text', 'placeholder="1 year"')}
+              ${f('work_hours', 'Working days and hours', 'text', 'placeholder="Monday to Friday, 7 AM to 5 PM"')}
+              ${f('start_window', 'Start is scheduled within', 'text', 'placeholder="2 to 4 weeks after this contract is signed"')}
+            </div>
+            <label class="check"><input type="checkbox" name="arbitration_enabled" ${c.arbitration_enabled !== false ? 'checked' : ''}> Offer the optional contractor arbitration agreement on Massachusetts contracts</label>
+            ${ta('contract_extra', 'Additional contract terms (optional)', 'Added as section 20 of every contract. Leave empty if you have none.')}
+            <p class="sub">The booking deposit and payment plan come from the payment schedule below.</p>
+          </div>
         </section>`}
         <section>
           <h2>Numbering</h2>
@@ -2639,6 +2702,49 @@
     const getSched = companySchedule(c);
     let sigVal = c.contractor_signature || '';
     if ($('#sigField')) signatureField(c, (v) => { sigVal = v; });
+    // Contract: own PDF or built-in template
+    const kf = { url: c.contract_file_url || '', name: c.contract_file_name || '', pages: c.contract_file_pages || 0, size: c.contract_file_size || 0, sha256: c.contract_file_sha256 || '', at: c.contract_file_uploaded_at || null, warn: [] };
+    const kMode = () => { const r = $('#coForm input[name=contract_mode]:checked'); return r ? r.value : (c.contract_mode || 'builtin'); };
+    const kShow = () => {
+      if ($('#kUploadBox')) $('#kUploadBox').hidden = kMode() !== 'upload';
+      if ($('#kBuiltinBox')) $('#kBuiltinBox').hidden = kMode() !== 'builtin';
+    };
+    const kDraw = () => {
+      const box = $('#kFile');
+      if (!box) return;
+      box.className = 'k-file' + (kf.url ? ' has' : '');
+      box.innerHTML = kf.url
+        ? `<div class="k-fname"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>${esc(kf.name || 'Contract.pdf')}</div>
+           <p class="sub">${kf.pages ? plural(kf.pages, 'page') + ' · ' : ''}${kf.size ? (kf.size / 1048576).toFixed(1) + ' MB · ' : ''}${kf.at ? 'Uploaded ' + esc(fmtDate(kf.at)) : ''}</p>
+           ${kf.warn.map((w) => `<p class="k-warn">${esc(w)}</p>`).join('')}
+           <div class="btn-row"><a class="btn" href="${esc(kf.url)}" target="_blank" rel="noopener">Open</a><button type="button" class="btn" id="kRep">Replace</button><button type="button" class="btn subtle" id="kRm">Remove</button></div>
+           <p class="sub">Contracts customers already signed keep the file they signed.</p>`
+        : `<p><b>Upload your contract</b></p><p class="sub">Choose the PDF your customers should sign.</p><div class="btn-row"><button type="button" class="btn primary" id="kUp">Choose PDF</button></div>`;
+      const pick = () => $('#kFileIn').click();
+      if ($('#kUp')) $('#kUp').onclick = pick;
+      if ($('#kRep')) $('#kRep').onclick = pick;
+      if ($('#kRm')) $('#kRm').onclick = () => { Object.assign(kf, { url: '', name: '', pages: 0, size: 0, sha256: '', at: null, warn: [] }); kDraw(); };
+    };
+    if ($('#kFileIn')) {
+      $('#kFileIn').onchange = async (e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast('Please choose a PDF file.', { type: 'error' }); return; }
+        if (file.size > 10 * 1024 * 1024) { toast('That PDF is over 10 MB. Save it again with smaller images, or as text from Word or Google Docs.', { type: 'error', ms: 8000 }); return; }
+        const box = $('#kFile');
+        box.innerHTML = '<p class="sub">Checking and uploading your contract</p>';
+        try {
+          const info = await window.Contract.inspect(file);
+          const up = await Store.uploadContract(file);
+          Object.assign(kf, { url: up.url, name: file.name, pages: info.pages, size: file.size, sha256: info.sha256, at: new Date().toISOString(), warn: info.warn });
+          toast('Contract uploaded. Click Save company to use it.');
+        } catch (err) { toast(err.message, { type: 'error', ms: 8000 }); }
+        kDraw();
+      };
+    }
+    $$('#coForm input[name=contract_mode]').forEach((r) => (r.onchange = kShow));
+    kDraw(); kShow();
     const drawLogo = () => {
       $('#logoBox').innerHTML = logo ? `<img src="${logo}" alt="Company logo">` : '<span class="sub">No logo</span>';
       $('#logoRm').hidden = !logo;
@@ -2666,6 +2772,11 @@
         obj.contract_enabled = !!form.elements.contract_enabled && form.elements.contract_enabled.checked;
         obj.arbitration_enabled = !!form.elements.arbitration_enabled && form.elements.arbitration_enabled.checked;
         obj.contractor_signature = sigVal;
+        if (!S.needsUpgrade6) {
+          obj.contract_mode = kMode();
+          Object.assign(obj, { contract_file_url: kf.url || null, contract_file_name: kf.name || null, contract_file_pages: kf.pages || null, contract_file_size: kf.size || null, contract_file_sha256: kf.sha256 || null, contract_file_uploaded_at: kf.at || null });
+          if (obj.contract_enabled && obj.contract_mode === 'upload' && !kf.url) toast('Contracts are on, but no contract PDF is uploaded yet. Customers can accept, but can\'t sign until you add it.', { type: 'error', ms: 8000 });
+        }
         if (obj.contract_enabled && !sigVal) toast('Contracts are on, but your signature is missing. Draw it under Contract and licenses.', { type: 'error', ms: 7000 });
       }
       if (!S.needsUpgrade) {
@@ -2744,7 +2855,7 @@
       }
 
       status('Copying the website files');
-      const site = ['index.html', 'view.html', 'app.js', 'render.js', 'data.js', 'styles.css', 'config.js'];
+      const site = ['index.html', 'app.html', 'view.html', 'app.js', 'render.js', 'data.js', 'styles.css', 'config.js'];
       for (const f of site) {
         try { const r = await fetch(f, { cache: 'no-store' }); if (r.ok) zip.file(`site/${f}`, await r.text()); } catch (e) { /* skip */ }
       }
@@ -2786,8 +2897,16 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
       unsupported: '<p class="sub">This browser doesn\'t support desktop notifications.</p>',
       default: '<button class="btn" id="askNotif">Turn on desktop notifications</button>'
     }[perm];
+    const kStatus = (c) => !c.contract_enabled ? 'Off: customers accept by typing their name'
+      : c.contract_mode === 'builtin' ? 'On: built-in Massachusetts and Rhode Island template'
+      : c.contract_file_url ? `On: ${esc(c.contract_file_name || 'your uploaded PDF')}` : 'On, but no contract PDF uploaded yet';
     v.innerHTML = `
       <div class="head"><h1>Settings</h1></div>
+      <section class="set">
+        <h2>Contract</h2>
+        <p class="sub">Upload your own contract (PDF) for customers to sign after they accept an estimate. Each company can have its own.</p>
+        <div class="set-list">${S.companies.map((c) => `<div class="set-row"><div><b>${esc(c.name)}</b><div class="sub">${kStatus(c)}</div></div><a class="btn" href="#/company/${c.id}">Set up contract</a></div>`).join('')}</div>
+      </section>
       <section class="set">
         <h2>Account</h2>
         ${S.mode === 'demo'

@@ -3,77 +3,683 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>BoltedBid | Estimates, contracts and invoices for contractors</title>
+  <meta name="description" content="Send polished estimates, let customers accept and sign your own contract from their phone, and invoice every milestone. Works in every state. 30 days free, then $15 a month.">
   <meta name="theme-color" content="#1F4E46">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="BoltedBid">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <title>BoltedBid | Estimates, contracts and invoices</title>
+  <meta property="og:title" content="BoltedBid: estimates, contracts and invoices for contractors">
+  <meta property="og:description" content="Win the job, get it signed, get paid. Try it free for 30 days.">
+  <meta property="og:image" content="site/poster.jpg">
   <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261120">
+  <script>
+    // Someone who installed the app before the front page existed: open the app, not this page.
+    if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) location.replace('app.html#/dashboard');
+  </script>
+  <style>
+    :root {
+      --ink: #16202A; --ink-2: #3A4652; --muted: #6B7682; --line: #DDE2E0; --soft: #F4F6F5; --paper: #FFFFFF; --bg: #FBFAF7;
+      --spruce: #1F4E46; --spruce-2: #2A6A5E; --deep: #102F2A; --gold: #E2BE76; --brass: #9C7434; --cream: #F4F1EA;
+      --font: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --r: 18px; --wrap: 1180px;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+    body { margin: 0; font: 16px/1.55 var(--font); color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
+    img, video { display: block; max-width: 100%; }
+    a { color: inherit; }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.025em; line-height: 1.1; }
+    p { margin: 0; }
+    .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+    .kick { font-size: 13px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brass); }
+    .sec { padding: 104px 0; }
+    .sec-head { max-width: 720px; margin-bottom: 52px; }
+    .sec-head h2 { font-size: clamp(32px, 4.2vw, 46px); margin-top: 14px; }
+    .sec-head p { font-size: 18px; color: var(--ink-2); margin-top: 16px; }
+    .center { text-align: center; margin-left: auto; margin-right: auto; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 12px; border: 1px solid transparent; font: 600 16px var(--font); text-decoration: none; cursor: pointer; transition: transform .15s ease, background .15s ease, box-shadow .15s ease; white-space: nowrap; }
+    .btn:active { transform: translateY(1px); }
+    .btn.gold { background: var(--gold); color: var(--deep); box-shadow: 0 8px 24px rgba(226,190,118,.25); }
+    .btn.gold:hover { background: #ECCB86; }
+    .btn.green { background: var(--spruce); color: #fff; }
+    .btn.green:hover { background: var(--spruce-2); }
+    .btn.line { border-color: var(--line); background: var(--paper); color: var(--ink); }
+    .btn.line:hover { border-color: #C5CCC9; }
+    .btn.ghost { color: var(--cream); border-color: rgba(244,241,234,.28); background: rgba(255,255,255,.04); }
+    .btn.ghost:hover { background: rgba(255,255,255,.1); }
+    .btn.wide { width: 100%; }
+    .btn:focus-visible, .tab:focus-visible, summary:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+    /* Nav */
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(16,47,42,.86); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); border-bottom: 1px solid rgba(255,255,255,.07); }
+    .nav .wrap { display: flex; align-items: center; height: 68px; gap: 28px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 21px; letter-spacing: -0.03em; color: var(--cream); text-decoration: none; }
+    .logo img { width: 28px; height: 28px; }
+    .logo b { color: var(--gold); }
+    .links { display: flex; gap: 26px; margin-left: 12px; }
+    .links a { color: #C9D6D2; text-decoration: none; font-weight: 500; font-size: 15px; }
+    .links a:hover { color: #fff; }
+    .nav-cta { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+    .nav-cta .btn { min-height: 40px; padding: 0 16px; font-size: 15px; border-radius: 10px; }
+    .signin { color: var(--cream); text-decoration: none; font-weight: 600; font-size: 15px; padding: 8px 6px; }
+    .menu-btn { display: none; margin-left: auto; width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: transparent; color: var(--cream); cursor: pointer; }
+    .menu-btn svg { width: 22px; height: 22px; }
+    .mobile-menu { display: none; }
+
+    /* Hero */
+    .hero { position: relative; overflow: hidden; color: var(--cream); background: radial-gradient(1100px 620px at 80% 10%, #275E53 0, #17413A 42%, var(--deep) 100%); padding: 72px 0 0; }
+    .hero::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 48px 48px; mask-image: linear-gradient(#000 40%, transparent); -webkit-mask-image: linear-gradient(#000 40%, transparent); pointer-events: none; }
+    .hero .wrap { position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: center; }
+    .hero .kick { color: var(--gold); }
+    .hero h1 { font-size: clamp(40px, 5.6vw, 66px); margin-top: 18px; letter-spacing: -0.035em; }
+    .hero h1 em { font-style: normal; color: var(--gold); }
+    .hero .lead { font-size: 19px; color: #C9D6D2; margin-top: 22px; max-width: 520px; }
+    .hero .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+    .hero .fine { margin-top: 16px; font-size: 14px; color: #9FB4AE; }
+    .player { position: relative; border-radius: 16px; overflow: hidden; box-shadow: 0 40px 90px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.1); background: #0B211D; aspect-ratio: 16 / 9; }
+    .player video { width: 100%; height: 100%; object-fit: cover; }
+    .player .play { position: absolute; right: 14px; bottom: 14px; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px; border: 0; background: rgba(16,47,42,.82); color: var(--cream); font: 600 14px var(--font); cursor: pointer; backdrop-filter: blur(6px); }
+    .player .play:hover { background: rgba(16,47,42,.95); }
+    .proof { position: relative; margin-top: 72px; border-top: 1px solid rgba(255,255,255,.09); }
+    .proof .wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+    .proof div { padding: 24px 20px; display: flex; gap: 12px; align-items: flex-start; font-size: 15px; color: #D5E0DC; }
+    .proof div + div { border-left: 1px solid rgba(255,255,255,.09); }
+    .proof svg { flex: none; width: 22px; height: 22px; color: var(--gold); margin-top: 1px; }
+
+    /* Feature tour (interactive tabs) */
+    .tour { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: 48px; align-items: start; }
+    .tabs { display: flex; flex-direction: column; gap: 8px; }
+    .tab { text-align: left; border: 1px solid transparent; background: transparent; border-radius: 14px; padding: 16px 18px; cursor: pointer; font: inherit; color: inherit; transition: background .2s, border-color .2s; position: relative; }
+    .tab h3 { font-size: 18px; display: flex; align-items: center; gap: 10px; }
+    .tab h3 span { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--soft); color: var(--spruce); font-size: 13px; font-weight: 700; flex: none; }
+    .tab p { color: var(--ink-2); font-size: 15px; margin-top: 8px; display: none; }
+    .tab:hover { background: var(--soft); }
+    .tab[aria-selected="true"] { background: var(--paper); border-color: var(--line); box-shadow: 0 10px 30px rgba(22,32,42,.06); }
+    .tab[aria-selected="true"] h3 span { background: var(--spruce); color: #fff; }
+    .tab[aria-selected="true"] p { display: block; }
+    .tab .bar { position: absolute; left: 18px; right: 18px; bottom: 8px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; display: none; }
+    .tab[aria-selected="true"] .bar { display: block; }
+    .tab .bar i { display: block; height: 100%; width: 0; background: var(--gold); }
+    .tab[aria-selected="true"].auto .bar i { animation: fill 7s linear forwards; }
+    @keyframes fill { to { width: 100%; } }
+    .stagebox { position: sticky; top: 100px; border-radius: 22px; background: linear-gradient(150deg, #E7EEEB, #F5F2EA); padding: 32px; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+    .panel { width: 100%; display: none; animation: rise .45s cubic-bezier(.2,.7,.2,1); }
+    .panel.on { display: block; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    .win { border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 24px 60px rgba(16,47,42,.18), 0 0 0 1px rgba(16,47,42,.08); }
+    .win .tb { height: 30px; background: #EEF1EF; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+    .win .tb i { width: 9px; height: 9px; border-radius: 50%; background: #D1D7D4; }
+    .win .tb span { margin-left: 12px; font-size: 11.5px; color: var(--muted); background: #fff; border-radius: 6px; padding: 2px 10px; }
+    .win img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; }
+    .phones { display: flex; justify-content: center; gap: 22px; }
+    .phone { width: min(230px, 42%); border-radius: 34px; background: #0B1A17; padding: 8px; box-shadow: 0 24px 60px rgba(16,47,42,.25); }
+    .phone img { border-radius: 27px; width: 100%; height: auto; aspect-ratio: 390 / 760; object-fit: cover; object-position: top; }
+    .phone:nth-child(2) { margin-top: 36px; }
+
+    /* Feature grid */
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 24px; transition: transform .2s, box-shadow .2s; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(22,32,42,.07); }
+    .card .ic { width: 42px; height: 42px; border-radius: 12px; background: #E6EFEC; color: var(--spruce); display: grid; place-items: center; }
+    .card .ic svg { width: 22px; height: 22px; }
+    .card h3 { font-size: 17px; margin-top: 18px; }
+    .card p { font-size: 15px; color: var(--ink-2); margin-top: 8px; }
+
+    /* Steps */
+    .band { background: var(--deep); color: var(--cream); }
+    .band .kick { color: var(--gold); }
+    .band .sec-head p { color: #C9D6D2; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; counter-reset: s; }
+    .step { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); border-radius: var(--r); padding: 28px; }
+    .step b { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--gold); color: var(--deep); font-size: 17px; }
+    .step h3 { font-size: 21px; margin-top: 20px; }
+    .step p { color: #C9D6D2; margin-top: 10px; font-size: 15.5px; }
+
+    /* Pricing */
+    .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: stretch; }
+    .plan { position: relative; display: flex; flex-direction: column; background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 32px 28px 28px; }
+    .plan.best { border: 2px solid var(--spruce); box-shadow: 0 24px 60px rgba(31,78,70,.16); transform: translateY(-8px); }
+    .plan .badge { position: absolute; top: -14px; left: 28px; background: var(--spruce); color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 6px 12px; border-radius: 999px; }
+    .plan h3 { font-size: 19px; }
+    .plan .desc { color: var(--muted); font-size: 15px; margin-top: 6px; min-height: 46px; }
+    .price { display: flex; align-items: baseline; gap: 6px; margin-top: 22px; }
+    .price strong { font-size: 52px; letter-spacing: -0.04em; line-height: 1; }
+    .price span { color: var(--muted); font-size: 16px; }
+    .plan .note { font-size: 14px; color: var(--spruce-2); font-weight: 600; margin-top: 10px; min-height: 22px; }
+    .plan ul { list-style: none; padding: 0; margin: 24px 0 28px; display: grid; gap: 11px; font-size: 15px; color: var(--ink-2); }
+    .plan li { display: flex; gap: 10px; }
+    .plan li svg { flex: none; width: 18px; height: 18px; color: var(--spruce); margin-top: 2px; }
+    .plan .btn { margin-top: auto; }
+    .plans-fine { text-align: center; color: var(--muted); font-size: 14px; margin-top: 28px; }
+
+    /* Account */
+    .acct { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: 64px; align-items: center; }
+    .acct-copy h2 { font-size: clamp(32px, 4vw, 44px); margin-top: 14px; }
+    .acct-copy p { font-size: 18px; color: var(--ink-2); margin-top: 16px; }
+    .acct-copy ul { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 14px; }
+    .acct-copy li { display: flex; gap: 12px; align-items: flex-start; }
+    .acct-copy li svg { flex: none; width: 22px; height: 22px; color: var(--spruce); }
+    .authbox { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 28px; box-shadow: 0 24px 60px rgba(22,32,42,.08); }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--soft); border-radius: 12px; padding: 4px; margin-bottom: 24px; }
+    .seg button { border: 0; background: transparent; font: 600 15px var(--font); color: var(--muted); padding: 10px; border-radius: 9px; cursor: pointer; }
+    .seg button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(22,32,42,.08); }
+    .authbox form { display: grid; gap: 14px; }
+    .authbox label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+    .authbox input { font: 16px var(--font); padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); width: 100%; }
+    .authbox input:focus { border-color: var(--spruce); outline: none; box-shadow: 0 0 0 3px rgba(31,78,70,.15); }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .planpick { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .planpick label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-weight: 500; }
+    .planpick input { width: auto; accent-color: var(--spruce); }
+    .planpick label:has(input:checked) { border-color: var(--spruce); background: #F0F6F4; }
+    .planpick small { color: var(--muted); font-weight: 500; display: block; font-size: 12.5px; }
+    .msg { font-size: 14.5px; min-height: 20px; }
+    .msg.err { color: #A8432F; }
+    .msg.ok { color: #2D6F47; }
+    .linkbtn { border: 0; background: none; color: var(--spruce-2); font: 600 14px var(--font); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+    .tiny { font-size: 13px; color: var(--muted); }
+    .signed-in { text-align: center; display: grid; gap: 14px; }
+
+    /* FAQ */
+    .faq { max-width: 820px; margin: 0 auto; display: grid; gap: 12px; }
+    .faq details { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 0 22px; }
+    .faq summary { list-style: none; cursor: pointer; padding: 20px 0; font-weight: 600; font-size: 17px; display: flex; justify-content: space-between; gap: 16px; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; font-size: 24px; line-height: 1; color: var(--spruce); transition: transform .2s; }
+    .faq details[open] summary::after { transform: rotate(45deg); }
+    .faq details p { padding: 0 0 20px; color: var(--ink-2); }
+
+    /* Final CTA + footer */
+    .final { background: radial-gradient(900px 400px at 50% 0, #275E53 0, var(--deep) 70%); color: var(--cream); text-align: center; border-radius: 28px; padding: 72px 24px; }
+    .final h2 { font-size: clamp(32px, 4.4vw, 48px); }
+    .final p { color: #C9D6D2; font-size: 18px; margin-top: 14px; }
+    .final .btn { margin-top: 30px; }
+    footer { padding: 48px 0 56px; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; }
+    footer .logo { color: var(--ink); font-size: 18px; }
+    footer .logo b { color: var(--spruce); }
+    footer nav { display: flex; gap: 22px; flex-wrap: wrap; }
+    footer nav a { text-decoration: none; color: var(--ink-2); }
+
+    /* Video lightbox */
+    .lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(8,20,18,.86); display: none; place-items: center; padding: 24px; }
+    .lightbox.on { display: grid; }
+    .lightbox video { width: min(1100px, 100%); border-radius: 14px; box-shadow: 0 40px 100px rgba(0,0,0,.6); }
+    .lightbox button { position: absolute; top: 18px; right: 18px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.12); color: #fff; font-size: 22px; cursor: pointer; }
+
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
+    .reveal.in { opacity: 1; transform: none; }
+
+    /* Tablet */
+    @media (max-width: 1020px) {
+      .links { display: none; }
+      .hero .wrap { grid-template-columns: 1fr; gap: 44px; }
+      .proof .wrap { grid-template-columns: repeat(2, 1fr); }
+      .proof div:nth-child(3) { border-left: 0; }
+      .proof div:nth-child(n+3) { border-top: 1px solid rgba(255,255,255,.09); }
+      .tour { grid-template-columns: 1fr; }
+      .stagebox { position: relative; top: 0; min-height: 0; }
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      .plans { grid-template-columns: 1fr; max-width: 520px; margin: 0 auto; }
+      .plan.best { transform: none; }
+      .acct { grid-template-columns: 1fr; gap: 40px; }
+    }
+    /* Phone */
+    @media (max-width: 680px) {
+      .wrap { padding: 0 16px; }
+      .sec { padding: 72px 0; }
+      .nav-cta { display: none; }
+      .menu-btn { display: grid; place-items: center; }
+      .mobile-menu { position: fixed; top: 68px; left: 0; right: 0; z-index: 49; background: var(--deep); padding: 12px 16px 20px; border-bottom: 1px solid rgba(255,255,255,.1); flex-direction: column; gap: 4px; }
+      .mobile-menu.on { display: flex; }
+      .mobile-menu a:not(.btn) { color: var(--cream); text-decoration: none; padding: 12px 4px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,.07); }
+      .mobile-menu .btn { margin-top: 12px; }
+      .hero { padding-top: 48px; }
+      .hero .ctas .btn { width: 100%; }
+      .proof .wrap { grid-template-columns: 1fr; }
+      .proof div + div { border-left: 0; border-top: 1px solid rgba(255,255,255,.09); }
+      .proof div { padding: 16px 4px; }
+      .tabs { flex-direction: row; overflow-x: auto; gap: 8px; scroll-snap-type: x mandatory; padding-bottom: 4px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+      .tab { flex: 0 0 auto; padding: 10px 14px; scroll-snap-align: start; border-color: var(--line); background: var(--paper); }
+      .tab h3 { font-size: 15px; white-space: nowrap; }
+      .tab h3 span { width: 22px; height: 22px; font-size: 12px; }
+      .tab p, .tab .bar { display: none !important; }
+      .tab-desc { display: block !important; }
+      .stagebox { padding: 16px; border-radius: 18px; }
+      .grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .row2 { grid-template-columns: 1fr; }
+      .authbox { padding: 20px; }
+      .final { border-radius: 20px; padding: 56px 20px; }
+    }
+    .tab-desc { display: none; color: var(--ink-2); font-size: 15px; margin: 4px 0 16px; }
+  </style>
 </head>
 <body>
-  <div id="auth" class="auth" hidden></div>
-
-  <div id="app" class="app" hidden>
-    <aside class="side">
-      <div class="brand"><span class="mark" aria-hidden="true"></span><span>Bolted<b>Bid</b></span></div>
-      <label class="switch" hidden>Company
-        <select id="companySwitch"></select>
-      </label>
-      <nav class="nav" aria-label="Main">
-        <a href="#/dashboard" data-nav="dashboard">Overview</a>
-        <a href="#/jobs" data-nav="jobs">Jobs</a>
-        <a href="#/estimates" data-nav="estimates">Estimates</a>
-        <a href="#/change_orders" data-nav="change_orders">Change orders</a>
-        <a href="#/invoices" data-nav="invoices">Invoices</a>
-        <a href="#/customers" data-nav="customers">Customers</a>
-        <a href="#/pricebook" data-nav="pricebook">Price book</a>
-        <a href="#/companies" data-nav="companies">Companies</a>
-        <a href="#/settings" data-nav="settings">Settings</a>
+  <header class="nav">
+    <div class="wrap">
+      <a class="logo" href="#top" aria-label="BoltedBid home"><img src="icons/mark.svg" alt=""><span>Bolted<b>Bid</b></span></a>
+      <nav class="links" aria-label="Sections">
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
       </nav>
-      <div class="side-foot" id="sideFoot"></div>
-    </aside>
-
-    <div class="main">
-      <header class="top">
-        <button class="btn primary" id="newBtn">New</button>
-        <button class="bell" id="bell" aria-label="Notifications">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-          <span class="badge" hidden></span>
-        </button>
-      </header>
-      <div id="banner" class="banner" hidden></div>
-      <main id="view" class="sheet"></main>
+      <div class="nav-cta" id="navCta">
+        <a class="signin" href="#account" data-auth="in">Sign in</a>
+        <a class="btn gold" href="#account" data-auth="up">Start free trial</a>
+      </div>
+      <button class="menu-btn" id="menuBtn" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     </div>
-
-    <nav class="tabbar" aria-label="Main">
-      <a href="#/dashboard" data-nav="dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg><span>Overview</span></a>
-      <a href="#/jobs" data-nav="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Jobs</span></a>
-      <a href="#/estimates" data-nav="estimates"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/></svg><span>Estimates</span></a>
-      <a href="#/invoices" data-nav="invoices"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Invoices</span></a>
-      <button type="button" id="moreTab" data-more="1"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg><span>More</span></button>
-    </nav>
+  </header>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+    <a href="#account" data-auth="in" class="m-signin">Sign in</a>
+    <a class="btn gold wide" href="#account" data-auth="up">Start free trial</a>
   </div>
 
-  <div id="toasts" class="toasts" aria-live="polite"></div>
-  <datalist id="unitList"><option value="each"><option value="hour"><option value="day"><option value="sq ft"><option value="linear ft"><option value="sq yd"><option value="cu yd"><option value="lot"><option value="job"></datalist>
+  <main id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap">
+        <div>
+          <div class="kick">For home improvement contractors</div>
+          <h1>Win the job. Get it signed. <em>Get paid.</em></h1>
+          <p class="lead">BoltedBid puts your estimates, contracts and invoices in one place. Send a polished estimate, let your customer accept and sign from their phone, and invoice every milestone.</p>
+          <div class="ctas">
+            <a class="btn gold" href="#account" data-auth="up">Start your 30-day free trial</a>
+            <button class="btn ghost" id="watch" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 8 5.5z"/></svg>Watch the tour</button>
+          </div>
+          <p class="fine">30 days free, then $15 a month or $130 a year. Cancel anytime.</p>
+        </div>
+        <div class="player">
+          <video id="heroVideo" src="site/tour.mp4" poster="site/poster.jpg" autoplay muted loop playsinline preload="metadata" aria-label="A 27-second tour of BoltedBid"></video>
+          <button class="play" id="watch2" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/></svg>Full screen</button>
+        </div>
+      </div>
+      <div class="proof">
+        <div class="wrap">
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 15l2 2 4-4"/></svg>Upload your own contract. Customers sign it online, in any state</div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Works on your phone, tablet and computer</div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Know the moment a customer opens your estimate</div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Bring your estimates and invoices over from Skynova</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature tour -->
+    <section class="sec" id="features">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <div class="kick">Features</div>
+          <h2>Everything from the first quote to the final payment</h2>
+          <p>Built by a working contractor for the way home improvement jobs actually run: deposits, change orders, photos, and customers who sign on their phone.</p>
+        </div>
+        <div class="tour">
+          <div class="tabs" role="tablist" aria-label="BoltedBid features">
+            <button class="tab" role="tab" aria-selected="true" aria-controls="p1" id="t1" data-desc="Line items, a price book, good, better and best options, add-ons, a booking deposit and milestone payments, with photos on their own pages."><h3><span>1</span>Estimates</h3><p>Line items, a price book, good, better and best options, add-ons, a booking deposit and milestone payments, with photos on their own pages.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p2" id="t2" data-desc="Your customer opens a link on any phone. No app and no account. They pick their options and accept, and you're notified right away."><h3><span>2</span>Customer approval</h3><p>Your customer opens a link on any phone. No app and no account. They pick their options and accept, and you're notified right away.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p3" id="t3" data-desc="Upload your own contract once. After a customer accepts, it appears for their signature, with a signature page tying it to the estimate and the date and time recorded."><h3><span>3</span>Contracts and e-signature</h3><p>Upload your own contract once. After a customer accepts, it appears for their signature, with a signature page tying it to the estimate and the date and time recorded.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p4" id="t4" data-desc="See every bid as drafts, sent, viewed, accepted and invoiced. Each job keeps its estimate, change orders, invoices, payments and photos together."><h3><span>4</span>Pipeline and jobs</h3><p>See every bid as drafts, sent, viewed, accepted and invoiced. Each job keeps its estimate, change orders, invoices, payments and photos together.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p5" id="t5" data-desc="Turn each milestone into an invoice, record checks, cash or card payments, send reminders and see what's overdue at a glance."><h3><span>5</span>Invoices and payments</h3><p>Turn each milestone into an invoice, record checks, cash or card payments, send reminders and see what's overdue at a glance.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p6" id="t6" data-desc="Your numbers for the month: what's outstanding, what's overdue, what came in, and which customers just opened or accepted."><h3><span>6</span>Your business at a glance</h3><p>Your numbers for the month: what's outstanding, what's overdue, what came in, and which customers just opened or accepted.</p><div class="bar"><i></i></div></button>
+          </div>
+          <div>
+            <p class="tab-desc" id="tabDesc"></p>
+            <div class="stagebox">
+              <div class="panel on" role="tabpanel" id="p1" aria-labelledby="t1"><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/estimate.jpg" alt="Editing an estimate in BoltedBid, with the payment schedule beside it" loading="lazy" width="1600" height="1000"></div></div>
+              <div class="panel" role="tabpanel" id="p2" aria-labelledby="t2" hidden><div class="phones"><div class="phone"><img src="site/phone-estimate.jpg" alt="The estimate as the customer sees it on a phone" loading="lazy"></div><div class="phone"><img src="site/phone-accept.jpg" alt="The customer choosing options and accepting" loading="lazy"></div></div></div>
+              <div class="panel" role="tabpanel" id="p3" aria-labelledby="t3" hidden><div class="phones"><div class="phone"><img src="site/phone-contract.jpg" alt="The contractor's own contract on a phone" loading="lazy"></div><div class="phone"><img src="site/phone-sign.jpg" alt="The customer signing the contract with a finger" loading="lazy"></div></div></div>
+              <div class="panel" role="tabpanel" id="p4" aria-labelledby="t4" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/pipeline.jpg" alt="The estimates pipeline board" loading="lazy" width="1600" height="1000"></div></div>
+              <div class="panel" role="tabpanel" id="p5" aria-labelledby="t5" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/invoice.jpg" alt="An invoice with a recorded payment" loading="lazy" width="1600" height="1000"></div></div>
+              <div class="panel" role="tabpanel" id="p6" aria-labelledby="t6" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/dashboard.jpg" alt="The overview with outstanding and overdue totals and recent activity" loading="lazy" width="1600" height="1000"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature grid -->
+    <section class="sec" style="padding-top:0">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <div class="kick">And more</div>
+          <h2>The details that save you an evening of paperwork</h2>
+        </div>
+        <div class="grid">
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><h3>Change orders</h3><p>Price extra work on site and get it approved and signed online before you start it.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div><h3>Job photos</h3><p>Snap photos from your phone and add them to any estimate or invoice, laid out cleanly.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div><h3>Viewed and accepted alerts</h3><p>Get notified when a customer opens, accepts or signs, so you call at the right moment.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></div><h3>Deposits and milestones</h3><p>A booking deposit, a payment the day work starts, the rest at completion, in dollars or percent.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg></div><h3>More than one company</h3><p>Run several businesses from one login, each with its own logo, licenses and numbering.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3 3 3-3"/></svg></div><h3>PDF and image downloads</h3><p>Download any estimate, invoice or signed contract as a clean PDF, or as an image to text.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div><h3>An app on your home screen</h3><p>Install BoltedBid on Android, iPhone or iPad. It opens full screen and uses your camera.</p></div>
+          <div class="card reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></div><h3>Your data, backed up</h3><p>Download a full backup of your customers, estimates, invoices and photos anytime.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="sec band" id="how">
+      <div class="wrap">
+        <div class="sec-head reveal">
+          <div class="kick">How it works</div>
+          <h2>Up and running before your next site visit</h2>
+          <p>Set it up once, then every estimate takes minutes.</p>
+        </div>
+        <div class="steps">
+          <div class="step reveal"><b>1</b><h3>Set up your company</h3><p>Add your logo, upload your contract, and set the payment schedule you use, like a $500 booking deposit and 50% when work starts.</p></div>
+          <div class="step reveal"><b>2</b><h3>Send the estimate</h3><p>Build it from your price book, add photos and options, and send the link by email or text from your own phone.</p></div>
+          <div class="step reveal"><b>3</b><h3>Get it signed and paid</h3><p>Your customer accepts and signs the contract online. You invoice each milestone and record payments as they come in.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="sec" id="pricing">
+      <div class="wrap">
+        <div class="sec-head center reveal" style="text-align:center">
+          <div class="kick">Pricing</div>
+          <h2>Simple pricing. Every feature included.</h2>
+          <p>Start free for 30 days. Keep going for less than one hour of labor a month.</p>
+        </div>
+        <div class="plans">
+          <div class="plan reveal">
+            <h3>Free trial</h3>
+            <p class="desc">Try everything on real jobs with real customers.</p>
+            <div class="price"><strong>$0</strong><span>for 30 days</span></div>
+            <p class="note">Then pick monthly or yearly</p>
+            <ul>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Every feature, no limits</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Unlimited estimates and invoices</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Online contracts and signatures</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Import from Skynova</li>
+            </ul>
+            <a class="btn line wide" href="#account" data-auth="up" data-plan="trial">Start free trial</a>
+          </div>
+          <div class="plan reveal">
+            <h3>Monthly</h3>
+            <p class="desc">Pay as you go. Cancel anytime.</p>
+            <div class="price"><strong>$15</strong><span>/ month</span></div>
+            <p class="note">After your 30-day free trial</p>
+            <ul>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Everything in the trial</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Unlimited customers and jobs</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Phone, tablet and computer</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Cancel anytime</li>
+            </ul>
+            <a class="btn green wide" href="#account" data-auth="up" data-plan="monthly">Choose monthly</a>
+          </div>
+          <div class="plan best reveal">
+            <span class="badge">Best value</span>
+            <h3>Yearly</h3>
+            <p class="desc">One payment a year. Over 3 months free compared with monthly.</p>
+            <div class="price"><strong>$130</strong><span>/ year</span></div>
+            <p class="note">$10.83 a month. Save $50 compared with monthly.</p>
+            <ul>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Everything in monthly</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Lowest price per month</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>One invoice for your books</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Starts after your free trial</li>
+            </ul>
+            <a class="btn gold wide" href="#account" data-auth="up" data-plan="yearly">Choose yearly</a>
+          </div>
+        </div>
+        <p class="plans-fine">Prices in US dollars. Your free trial starts when you create your account.</p>
+      </div>
+    </section>
+
+    <!-- Account -->
+    <section class="sec" id="account" style="background:var(--soft)">
+      <div class="wrap acct">
+        <div class="acct-copy reveal">
+          <div class="kick">Your account</div>
+          <h2 id="acctTitle">Start your 30-day free trial</h2>
+          <p>Create your account in a minute, then add your company and send your first estimate today.</p>
+          <ul>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Your data is private to your account. Customers only see the documents you send them.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>30 days free. Pick monthly or yearly whenever you're ready.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg><span>Coming from Skynova? Bring your estimates and invoices with you.</span></li>
+          </ul>
+        </div>
+        <div class="authbox reveal" id="authbox">
+          <div class="seg" role="tablist" aria-label="Account">
+            <button type="button" role="tab" aria-selected="true" data-mode="up">Create account</button>
+            <button type="button" role="tab" aria-selected="false" data-mode="in">Sign in</button>
+          </div>
+          <form id="upForm" novalidate>
+            <div class="row2">
+              <label>Your name<input name="name" autocomplete="name" required placeholder="Chris Morgan"></label>
+              <label>Company<input name="company" autocomplete="organization" placeholder="Morgan Home Improvement"></label>
+            </div>
+            <label>Email<input type="email" name="email" autocomplete="email" required placeholder="you@company.com"></label>
+            <label>Password<input type="password" name="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters"></label>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--ink-2);margin-bottom:6px">After your free trial</div>
+              <div class="planpick">
+                <label><input type="radio" name="plan" value="monthly"><span>Monthly<small>$15 / month</small></span></label>
+                <label><input type="radio" name="plan" value="yearly" checked><span>Yearly<small>$130 / year</small></span></label>
+              </div>
+            </div>
+            <button class="btn green wide" type="submit">Start my free trial</button>
+            <p class="msg" id="upMsg" role="status"></p>
+            <p class="tiny">You won't be charged during your 30-day trial.</p>
+          </form>
+          <form id="inForm" hidden novalidate>
+            <label>Email<input type="email" name="email" autocomplete="email" required></label>
+            <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+            <button class="btn green wide" type="submit">Sign in</button>
+            <p class="msg" id="inMsg" role="status"></p>
+            <p class="tiny"><button type="button" class="linkbtn" id="forgot">Forgot your password?</button></p>
+          </form>
+          <div class="signed-in" id="signedIn" hidden>
+            <p>You're signed in as <b id="whoami"></b>.</p>
+            <a class="btn green wide" href="app.html#/dashboard">Open BoltedBid</a>
+            <p class="tiny"><button type="button" class="linkbtn" id="signOut">Sign out</button></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="sec" id="faq">
+      <div class="wrap">
+        <div class="sec-head center reveal" style="text-align:center">
+          <div class="kick">Questions</div>
+          <h2>Good to know</h2>
+        </div>
+        <div class="faq">
+          <details class="reveal"><summary>Do my customers need an account or an app?</summary><p>No. They get a link by email or text and open it on any phone or computer. They can choose options, accept, sign and download a PDF without signing up for anything.</p></details>
+          <details class="reveal"><summary>Can I use my own contract?</summary><p>Yes, and it works in every state. Upload your contract as a PDF in your company profile. When a customer accepts an estimate, they read your contract and sign it on the same page. BoltedBid adds a signature page with the customer, job address, estimate number and price, and keeps a signed copy for both of you. Your contract should meet your state's rules, so have your attorney review it.</p></details>
+          <details class="reveal"><summary>What happens when my free trial ends?</summary><p>You choose monthly ($15) or yearly ($130). Everything you created during the trial stays in your account.</p></details>
+          <details class="reveal"><summary>Can I cancel anytime?</summary><p>Yes. Monthly plans stop at the end of the month you've paid for, and you can download a backup of all your data first.</p></details>
+          <details class="reveal"><summary>Does it work on my phone?</summary><p>Yes. BoltedBid works in any browser and installs on Android, iPhone and iPad like a regular app, including taking job photos with your camera.</p></details>
+          <details class="reveal"><summary>I use Skynova now. Can I bring my work over?</summary><p>Yes. Download your Skynova estimates and invoices as PDFs and BoltedBid reads them in, customers included.</p></details>
+          <details class="reveal"><summary>Can customers pay online?</summary><p>BoltedBid tracks deposits, milestone invoices and the payments you record, by check, cash, card or transfer. Taking card payments inside BoltedBid isn't available yet.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap" style="padding-bottom:24px">
+      <div class="final reveal">
+        <h2>Your next estimate could be signed by tonight</h2>
+        <p>Try BoltedBid free for 30 days.</p>
+        <a class="btn gold" href="#account" data-auth="up">Start your free trial</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a class="logo" href="#top"><img src="icons/mark.svg" alt=""><span>Bolted<b>Bid</b></span></a>
+      <nav aria-label="Footer">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#faq">FAQ</a>
+        <a href="#account" data-auth="in">Sign in</a>
+      </nav>
+      <span>&copy; <span id="yr">2026</span> BoltedBid</span>
+    </div>
+  </footer>
+
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="BoltedBid tour">
+    <button type="button" id="lbClose" aria-label="Close">&times;</button>
+    <video id="lbVideo" src="site/tour.mp4" poster="site/poster.jpg" controls playsinline preload="none"></video>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="config.js?v=20261120"></script>
-  <script src="render.js?v=20261120"></script>
-  <script src="contract.js?v=20261120"></script>
-  <script src="data.js?v=20261120"></script>
-  <script src="importer.js?v=20261120"></script>
-  <script src="app.js?v=20261120"></script>
+  <script src="config.js?v=20261120b"></script>
+  <script src="data.js?v=20261120b"></script>
+  <script>
+  (function () {
+    // ---- Payment links: paste your Stripe (or other) checkout links here when they're ready.
+    // While empty, the pricing buttons take people to "Create account" with that plan chosen.
+    const PAYMENT_LINKS = { monthly: '', yearly: '' };
+
+    const $ = (s, el = document) => el.querySelector(s);
+    const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+    $('#yr').textContent = new Date().getFullYear();
+
+    // Mobile menu
+    const menu = $('#mobileMenu'), mb = $('#menuBtn');
+    mb.onclick = () => { const on = menu.classList.toggle('on'); mb.setAttribute('aria-expanded', on); };
+    $$('#mobileMenu a').forEach((a) => a.addEventListener('click', () => { menu.classList.remove('on'); mb.setAttribute('aria-expanded', 'false'); }));
+
+    // Video lightbox
+    const lb = $('#lightbox'), lv = $('#lbVideo');
+    const openLb = () => { lb.classList.add('on'); lv.currentTime = 0; lv.play().catch(() => {}); };
+    const closeLb = () => { lv.pause(); lb.classList.remove('on'); };
+    $('#watch').onclick = openLb; $('#watch2').onclick = openLb;
+    $('#lbClose').onclick = closeLb;
+    lb.addEventListener('click', (e) => { if (e.target === lb) closeLb(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && lb.classList.contains('on')) closeLb(); });
+
+    // Feature tabs: click, arrow keys, and a gentle auto-advance until someone interacts.
+    const tabs = $$('.tab'), desc = $('#tabDesc');
+    let cur = 0, timer = null, auto = true;
+    function show(i, focus) {
+      cur = (i + tabs.length) % tabs.length;
+      tabs.forEach((t, k) => {
+        const on = k === cur;
+        t.setAttribute('aria-selected', on); t.tabIndex = on ? 0 : -1;
+        t.classList.toggle('auto', on && auto);
+        const p = document.getElementById(t.getAttribute('aria-controls'));
+        p.hidden = !on; p.classList.toggle('on', on);
+      });
+      desc.textContent = tabs[cur].dataset.desc;
+      if (focus) tabs[cur].focus();
+      clearTimeout(timer);
+      if (auto) timer = setTimeout(() => show(cur + 1), 7000);
+    }
+    const stopAuto = () => { auto = false; clearTimeout(timer); tabs.forEach((t) => t.classList.remove('auto')); };
+    tabs.forEach((t, i) => {
+      t.onclick = () => { stopAuto(); show(i); };
+      t.onkeydown = (e) => {
+        if (['ArrowDown', 'ArrowRight'].includes(e.key)) { e.preventDefault(); stopAuto(); show(cur + 1, true); }
+        if (['ArrowUp', 'ArrowLeft'].includes(e.key)) { e.preventDefault(); stopAuto(); show(cur - 1, true); }
+      };
+    });
+    // Only auto-advance while the feature tour is on screen.
+    const tourIO = new IntersectionObserver(([e]) => { if (!auto) return; if (e.isIntersecting) show(cur); else clearTimeout(timer); }, { threshold: 0.35 });
+    tourIO.observe($('.tour'));
+    show(0);
+
+    // Reveal on scroll
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.12 });
+    $$('.reveal').forEach((el) => io.observe(el));
+
+    // ---- Account: create account, sign in, forgot password
+    const upF = $('#upForm'), inF = $('#inForm'), segBtns = $$('.seg button');
+    function mode(m) {
+      segBtns.forEach((b) => b.setAttribute('aria-selected', b.dataset.mode === m));
+      upF.hidden = m !== 'up'; inF.hidden = m !== 'in';
+      $('#acctTitle').textContent = m === 'up' ? 'Start your 30-day free trial' : 'Welcome back';
+    }
+    segBtns.forEach((b) => (b.onclick = () => mode(b.dataset.mode)));
+    $$('[data-auth]').forEach((a) => a.addEventListener('click', (e) => {
+      const plan = a.dataset.plan;
+      if (plan && PAYMENT_LINKS[plan] && signedInUser) { e.preventDefault(); location.href = PAYMENT_LINKS[plan]; return; }
+      if (signedInUser && a.dataset.auth === 'in') { e.preventDefault(); location.href = 'app.html#/dashboard'; return; }
+      mode(a.dataset.auth);
+      if (plan === 'monthly' || plan === 'yearly') { const r = upF.querySelector(`input[value=${plan}]`); if (r) r.checked = true; }
+      setTimeout(() => { const f = (a.dataset.auth === 'up' ? upF : inF).querySelector('input'); if (f && !signedInUser) f.focus({ preventScroll: true }); }, 450);
+    }));
+
+    const cfg = window.APP_CONFIG || {};
+    const cloud = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY);
+    let signedInUser = null;
+    const say = (el, text, ok) => { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
+    const friendly = (err) => {
+      const m = (err && err.message) || String(err);
+      if (/invalid login/i.test(m)) return 'That email and password don\'t match. Try again, or reset your password.';
+      if (/already registered/i.test(m)) return 'That email already has an account. Sign in instead.';
+      if (/email not confirmed/i.test(m)) return 'Confirm your email first. Check your inbox for the link we sent.';
+      if (/rate limit|too many/i.test(m)) return 'Too many tries. Wait a minute and try again.';
+      return m;
+    };
+    function showSignedIn(user) {
+      signedInUser = user;
+      $('#whoami').textContent = user.email;
+      $('#signedIn').hidden = false; upF.hidden = true; inF.hidden = true; $('.seg').hidden = true;
+      $('#acctTitle').textContent = 'Welcome back';
+      $$('[data-auth="in"]').forEach((a) => { a.textContent = 'Open BoltedBid'; a.href = 'app.html#/dashboard'; });
+    }
+
+    let ready = (async () => {
+      if (!cloud) return; // demo copy of the site: the app runs in demo mode
+      try { const r = await window.Store.init(); if (r.user) showSignedIn(r.user); } catch (e) { /* page still works; forms will show the error */ }
+    })();
+
+    upF.onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(upF), msg = $('#upMsg'), b = upF.querySelector('button[type=submit]');
+      const email = String(f.get('email') || '').trim(), pw = String(f.get('password') || '');
+      if (!String(f.get('name') || '').trim()) return say(msg, 'Please add your name.');
+      if (!/^\S+@\S+\.\S+$/.test(email)) return say(msg, 'Please enter a valid email.');
+      if (pw.length < 8) return say(msg, 'Use a password with at least 8 characters.');
+      if (!cloud) { location.href = 'app.html'; return; }
+      b.disabled = true; b.textContent = 'Creating your account';
+      try {
+        await ready;
+        const trialEnds = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+        const r = await window.Store.signUp(email, pw, { full_name: String(f.get('name')).trim(), company_name: String(f.get('company') || '').trim(), plan: f.get('plan'), trial_ends: trialEnds });
+        if (r.session) { location.href = 'app.html#/company/new'; return; }
+        upF.reset();
+        say(msg, 'Almost done. Check your email and tap the link to confirm your account.', true);
+      } catch (err) { say(msg, friendly(err)); }
+      b.disabled = false; b.textContent = 'Start my free trial';
+    };
+
+    inF.onsubmit = async (e) => {
+      e.preventDefault();
+      const f = new FormData(inF), msg = $('#inMsg'), b = inF.querySelector('button[type=submit]');
+      if (!cloud) { location.href = 'app.html'; return; }
+      b.disabled = true; b.textContent = 'Signing in';
+      try { await ready; await window.Store.signIn(String(f.get('email')).trim(), String(f.get('password'))); location.href = 'app.html#/dashboard'; return; }
+      catch (err) { say(msg, friendly(err)); }
+      b.disabled = false; b.textContent = 'Sign in';
+    };
+
+    $('#forgot').onclick = async () => {
+      const email = String(inF.email.value || '').trim(), msg = $('#inMsg');
+      if (!/^\S+@\S+\.\S+$/.test(email)) { say(msg, 'Type your email above, then tap "Forgot your password?" again.'); inF.email.focus(); return; }
+      if (!cloud) return;
+      try { await ready; await window.Store.resetPassword(email); say(msg, 'Check your email for a link to choose a new password.', true); }
+      catch (err) { say(msg, friendly(err)); }
+    };
+
+    $('#signOut').onclick = async () => { try { await window.Store.signOut(); } catch (e) { /* ignore */ } location.reload(); };
+  })();
+  </script>
 </body>
 </html>

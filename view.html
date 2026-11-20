@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261120">
+  <link rel="stylesheet" href="styles.css?v=20261120b">
 </head>
 <body class="public">
   <div class="preview-banner" id="pvBanner" hidden>Preview as your customer. Opening this page yourself doesn't count as a customer view.</div>
@@ -27,10 +27,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="config.js?v=20261120"></script>
-  <script src="render.js?v=20261120"></script>
-  <script src="contract.js?v=20261120"></script>
-  <script src="data.js?v=20261120"></script>
+  <script src="config.js?v=20261120b"></script>
+  <script src="render.js?v=20261120b"></script>
+  <script src="contract.js?v=20261120b"></script>
+  <script src="data.js?v=20261120b"></script>
   <script>
   (async function () {
     const D = window.Doc;
@@ -69,6 +69,8 @@
     // Estimate first: the customer accepts, then the contract appears to sign (needs upgrade-5.sql).
     // Without that upgrade, the older one-step "accept and sign" is used.
     const afterAccept = () => fullContract() && company.contract_after_accept === true;
+    const own = () => fullContract() && C.isUpload(doc.signature && doc.signature.company ? doc.signature.company : company);
+    const builtin = () => fullContract() && !own();
     const missing = () => (fullContract() ? C.issues(doc, company) : []);
     const canChoose = () => D.isQuote(doc) && doc.status === 'sent' && !(doc.due_date && doc.due_date < D.today());
 
@@ -108,24 +110,27 @@
     function signedHTML() {
       const sig = doc.signature;
       return `<p class="ok">You ${isCO ? 'approved' : 'accepted'} this ${noun}${doc.accepted_by ? ' as ' + D.esc(doc.accepted_by) : ''}${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. ${D.esc(company.name)} has been notified.</p>
-        ${sig && fullContract() ? `<p class="sub">Your signed contract is shown above. You have until midnight of ${D.esc(C.addBusinessDays(new Date(sig.signed_at), 3).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))} to cancel, as explained in Attachment A.</p>
+        ${sig && own() ? `<p class="sub">Your signed contract is shown above.</p>
+        <div class="btn-row"><button class="btn primary" id="kDl">Download signed contract (PDF)</button></div>` : ''}
+        ${sig && builtin() ? `<p class="sub">Your signed contract is shown above. You have until midnight of ${D.esc(C.addBusinessDays(new Date(sig.signed_at), 3).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))} to cancel, as explained in Attachment A.</p>
         <div class="btn-row"><button class="btn primary" id="kDl">Download signed contract (PDF)</button></div>` : ''}`;
     }
 
     function signFormHTML() {
-      const arb = fullContract() && C.contractState(doc, company).state === 'MA' && company.arbitration_enabled !== false;
+      const arb = builtin() && C.contractState(doc, company).state === 'MA' && company.arbitration_enabled !== false;
       return `
         <h2>${isCO ? 'Approve and sign this change order' : signLater() ? 'Sign your contract' : 'Accept and sign the contract'}</h2>
         <p class="sub">${signLater() ? `You accepted this estimate${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. Please read the contract above and sign it below.` : isCO ? `By signing, you approve change order ${D.esc(doc.number)} and its price. It becomes part of your contract with ${D.esc(company.name)}.` : 'Please read the contract above the estimate. By signing, you accept this estimate' + (optLines().length ? ' with the options you chose' : '') + ' and agree to the contract.' + firstPayment()}</p>
         <form id="acf" class="kform" autocomplete="on">
-          ${fullContract() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read and agree to this contract, the attached estimate and the notices, including my right to cancel within 3 business days.</label>' : ''}
+          ${own() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read the whole contract above and the estimate, and I agree to them.</label>' : ''}
+          ${builtin() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read and agree to this contract, the attached estimate and the notices, including my right to cancel within 3 business days.</label>' : ''}
           <label>Your full name<input name="n" required autocomplete="name" placeholder="Your full name"></label>
           <div class="k-padbox"><div class="k-padhead"><span>Sign here with your finger or mouse</span><button type="button" class="link small" data-clear="main">Clear</button></div><canvas class="k-pad" id="padMain"></canvas></div>
           ${arb ? `<details class="k-arb"><summary>Optional: also sign the contractor arbitration agreement (Attachment E)</summary>
             <p class="sub">You don't have to sign this to accept. It lets ${D.esc(company.name)} take a dispute to state-approved arbitration instead of court.</p>
             <label class="check"><input type="checkbox" name="arb"> I agree to the contractor arbitration agreement in Attachment E.</label>
             <div class="k-padbox"><div class="k-padhead"><span>Separate signature for arbitration</span><button type="button" class="link small" data-clear="arb">Clear</button></div><canvas class="k-pad" id="padArb"></canvas></div></details>` : ''}
-          ${fullContract() ? '<label class="check"><input type="checkbox" name="nophotos"> No photos of my project for portfolio use (section 15)</label>' : ''}
+          ${builtin() ? '<label class="check"><input type="checkbox" name="nophotos"> No photos of my project for portfolio use (section 15)</label>' : ''}
           <button class="btn primary k-go" type="submit" disabled>${isCO ? 'Approve and sign' : signLater() ? 'Sign contract' : 'Accept and sign'}</button>
           <p class="sub k-note">Your signature, name, the date and time, and the device you use are recorded as proof of signing.</p>
         </form>`;
@@ -196,7 +201,7 @@
           image: main.image(), agreed: true, ua: navigator.userAgent.slice(0, 300),
           no_photos: !!(form.nophotos && form.nophotos.checked),
           arbitration_image: wantArb ? arb.image() : null, arbitration_name: wantArb ? form.n.value.trim() : null,
-          state: fullContract() ? C.contractState(doc, company).state : null
+          state: builtin() ? C.contractState(doc, company).state : null
         });
       };
     }
@@ -254,6 +259,7 @@
       // The estimate always comes first; the contract follows it, then the accept or sign box.
       paperEl.innerHTML = D.renderPaper(doc, company, photos);
       contractEl.innerHTML = showContract ? C.render(C.ctxFor(doc, company)) : '';
+      if (showContract) C.mount(contractEl);
       drawAccept();
     }
     draw();

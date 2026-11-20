@@ -1,4 +1,4 @@
-// Folio home improvement contract (Massachusetts and Rhode Island).
+// BoltedBid contracts: the contractor's own uploaded PDF, or the built-in Massachusetts and Rhode Island template.
 // Builds the contract from the company profile and the estimate, shows it on the
 // customer's page for signing, and makes the signed PDF.
 // Wording approved by the contractor; have an attorney review before relying on it.
@@ -45,7 +45,17 @@
   const dateTime = (iso) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   // ---------------- What's needed before a contract can go out ----------------
+  // The contractor's own contract (an uploaded PDF) instead of the built-in template.
+  const isUpload = (co) => (co || {}).contract_mode === 'upload';
+
   function issues(doc, co) {
+    if (isUpload(co)) {
+      const out = [];
+      if (!co.contract_file_url) out.push('Your contract PDF (Companies, Contract)');
+      if (!co.signer_name) out.push('Name of the person signing for the company (Companies)');
+      if (!doc.customer_name) out.push('Customer name');
+      return out;
+    }
     const { state } = contractState(doc, co);
     const out = [];
     const need = (ok, what) => { if (!ok) out.push(what); };
@@ -237,6 +247,7 @@
   }
 
   function render(ctx) {
+    if (isUpload(ctx.co)) return renderUpload(ctx);
     return `<article class="paper contract-paper"><div class="p-band"></div>${blocks(ctx).map((x) => `<div class="k-blk">${x}</div>`).join('')}</article>`;
   }
 
@@ -245,6 +256,140 @@
     const sig = doc.signature || null;
     if (sig && sig.company && sig.document) return { doc: { ...sig.document, number: doc.number }, co: { ...sig.company, logo: sig.company.logo || co.logo }, sig };
     return { doc, co, sig };
+  }
+
+  // ---------------- Uploaded contract (PDF) ----------------
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const PDFLIB = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+  const loadScript = (src, ready) => (ready() ? Promise.resolve() : new Promise((res, rej) => {
+    const el = document.createElement('script'); el.src = src; el.onload = () => res(); el.onerror = () => rej(new Error('A PDF tool did not load. Check your internet connection and try again.'));
+    document.head.appendChild(el);
+  }));
+  async function pdfjs() {
+    await loadScript(PDFJS, () => !!window.pdfjsLib);
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    return window.pdfjsLib;
+  }
+  async function fileBytes(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('The contract file could not be opened.');
+    return new Uint8Array(await r.arrayBuffer());
+  }
+
+  // The page BoltedBid adds after the contractor's PDF: who, which estimate, what total, and both signatures.
+  function sigPageHTML(ctx) {
+    const { doc, co } = ctx;
+    const sig = ctx.sig || null;
+    const t = D.totals(doc);
+    const addr = (co.address || '').split('\n').join(', ');
+    const job = (doc.job_site || doc.customer_address || '').split('\n').join(', ');
+    const sigImg = (src) => (src ? `<img class="k-sig" src="${src}" alt="Signature">` : '<div class="k-sig-blank">Signs below</div>');
+    const file = co.contract_file_name ? `"${esc(co.contract_file_name)}"` : 'the contract';
+    return `<h2 class="k-sp-title">Signature page</h2>
+      <p>This signature page is part of ${file}${co.contract_file_pages ? ` (${num(co.contract_file_pages)} ${co.contract_file_pages === 1 ? 'page' : 'pages'})` : ''}, which comes before it, and of the estimate attached after it. Together they are the agreement between:</p>
+      <table class="k-sp-tbl"><tbody>
+        <tr><th>Contractor</th><td>${esc(co.name || '')}${addr ? `, ${esc(addr)}` : ''}${co.phone ? `. ${esc(co.phone)}` : ''}${co.license_no ? `. ${/^lic/i.test(co.license_no) ? '' : 'License '}${esc(co.license_no)}` : ''}</td></tr>
+        <tr><th>Customer</th><td>${esc(doc.customer_name || '')}${doc.customer_email ? `, ${esc(doc.customer_email)}` : ''}${doc.customer_phone ? `, ${esc(doc.customer_phone)}` : ''}</td></tr>
+        <tr><th>Job address</th><td>${esc(job || 'As shown on the estimate')}</td></tr>
+        <tr><th>Estimate</th><td>${esc(D.typeName(doc))} ${esc(doc.number || '')}${doc.issue_date ? `, dated ${esc(fmtDate(doc.issue_date))}` : ''}${doc.job_title ? `, ${esc(doc.job_title)}` : ''}</td></tr>
+        <tr><th>Contract price</th><td><b>${money(t.total)}</b>${(doc.items || []).some((it) => it.option) ? ', with the options marked included on the estimate' : ''}</td></tr>
+      </tbody></table>
+      <p>By signing below, the customer confirms they have read the whole contract and the attached estimate, and agrees to them. Each party signs electronically, which has the same effect as signing on paper.</p>
+      <div class="k-signs">
+        <div><div class="k-lab">Customer</div>${sig ? sigImg(sig.image) : sigImg(null)}<div class="k-line">${esc(sig ? sig.name : doc.customer_name || '')}</div>
+          <div class="k-meta">${sig ? `Signed electronically ${esc(dateTime(sig.signed_at))}` : 'Not signed yet'}</div></div>
+        <div><div class="k-lab">Contractor</div>${co.contractor_signature ? `<img class="k-sig" src="${co.contractor_signature}" alt="Contractor signature">` : sigImg(null)}<div class="k-line">${esc(co.signer_name || '')}, for ${esc(co.name || '')}</div>
+          <div class="k-meta">${sig ? `Signed electronically ${esc(dateTime(sig.signed_at))}` : 'Applied when the customer signs'}</div></div>
+      </div>
+      ${sig ? `<p class="k-meta">Signing record: ${esc(sig.ua ? sig.ua.slice(0, 110) : 'device not recorded')}${sig.ip ? `, IP ${esc(sig.ip)}` : ''}.</p>` : ''}
+      ${co.contract_file_sha256 ? `<p class="k-meta">Contract file fingerprint (SHA-256): ${esc(co.contract_file_sha256)}</p>` : ''}`;
+  }
+
+  function renderUpload(ctx) {
+    const co = ctx.co;
+    return `<article class="paper contract-paper k-upl">
+      <div class="p-band"></div>
+      <div class="k-upl-head"><h1 class="k-title">Contract</h1>
+        <p class="sub">${esc(co.name || '')}${co.contract_file_pages ? ` · ${num(co.contract_file_pages)} ${co.contract_file_pages === 1 ? 'page' : 'pages'}` : ''}${co.contract_file_url ? ` · <a href="${esc(co.contract_file_url)}" target="_blank" rel="noopener">Open the PDF</a>` : ''}</p></div>
+      <div class="k-upl-pages" data-src="${esc(co.contract_file_url || '')}"><p class="sub k-upl-wait">Loading the contract</p></div>
+      <div class="k-blk k-sp">${sigPageHTML(ctx)}</div>
+    </article>`;
+  }
+
+  // Draw the PDF's pages as sharp images inside the page (phones can't show PDFs inside a page).
+  async function mount(root) {
+    const boxes = [...(root || document).querySelectorAll('.k-upl-pages[data-src]:not([data-done])')];
+    for (const box of boxes) {
+      box.dataset.done = '1';
+      const src = box.dataset.src;
+      if (!src) { box.innerHTML = '<p class="sub">No contract file has been added yet.</p>'; continue; }
+      try {
+        const lib = await pdfjs();
+        const pdf = await lib.getDocument({ data: await fileBytes(src) }).promise;
+        box.innerHTML = '';
+        const width = Math.min(1400, Math.max(600, Math.round((box.clientWidth || 760) * Math.min(2.5, window.devicePixelRatio || 1.5))));
+        for (let n = 1; n <= pdf.numPages; n++) {
+          const page = await pdf.getPage(n);
+          const vp1 = page.getViewport({ scale: 1 });
+          const vp = page.getViewport({ scale: width / vp1.width });
+          const c = document.createElement('canvas');
+          c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          const fig = document.createElement('figure');
+          fig.className = 'k-upl-page';
+          const img = new Image();
+          img.alt = `Contract page ${n} of ${pdf.numPages}`;
+          img.src = c.toDataURL('image/jpeg', 0.9);
+          fig.appendChild(img);
+          const cap = document.createElement('figcaption'); cap.textContent = `Page ${n} of ${pdf.numPages}`; fig.appendChild(cap);
+          box.appendChild(fig);
+        }
+      } catch (e) {
+        box.innerHTML = `<p class="sub">The contract couldn't be shown here. <a href="${esc(src)}" target="_blank" rel="noopener">Open the contract PDF</a> to read it.</p>`;
+      }
+    }
+  }
+
+  // Checks a PDF before it's saved: readable, not locked, how many pages, and whether it has real text.
+  async function inspect(file) {
+    const lib = await pdfjs();
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let pdf;
+    try { pdf = await lib.getDocument({ data: bytes.slice() }).promise; }
+    catch (e) { throw new Error(/password/i.test(e.message || '') ? 'This PDF is password protected. Save a copy without a password and upload that.' : 'This file could not be read as a PDF.'); }
+    const first = await pdf.getPage(1);
+    const vp = first.getViewport({ scale: 1 });
+    const txt = await first.getTextContent();
+    const hash = window.crypto && window.crypto.subtle ? [...new Uint8Array(await window.crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('') : '';
+    const warn = [];
+    if (pdf.numPages > 40) warn.push(`It has ${pdf.numPages} pages. Customers read it on their phone, so shorter is better.`);
+    if (txt.items.length < 5) warn.push('It looks like a scan or photo. It will work, but a PDF saved from Word or Google Docs is sharper and easier to read.');
+    const w = vp.width / 72, h = vp.height / 72;
+    if (!(Math.abs(w - 8.5) < 0.3 && Math.abs(h - 11) < 0.3) && !(Math.abs(w - 8.27) < 0.3 && Math.abs(h - 11.69) < 0.3)) warn.push(`The pages are ${w.toFixed(1)} × ${h.toFixed(1)} inches. Letter size (8.5 × 11) prints and reads best.`);
+    return { pages: pdf.numPages, sha256: hash, warn };
+  }
+
+  // Signed copy = the contractor's PDF as it was uploaded, then the signature page, then the estimate.
+  async function uploadPdf(ctx) {
+    await loadScript(PDFLIB, () => !!window.PDFLib);
+    const { PDFDocument } = window.PDFLib;
+    const sigHtml = `<div class="pg kpg" style="--brand:${/^#[0-9a-f]{3,8}$/i.test(ctx.co.color || '') ? ctx.co.color : '#1F4E46'}"><div class="p-band"></div><div class="pg-body"><div class="k-blk k-sp">${sigPageHTML(ctx)}</div></div>
+      <div class="pg-foot"><span>${esc(ctx.co.name || '')}</span><span>Contract ${esc(ctx.doc.number)}</span><span>Signature page</span></div></div>`;
+    const extra = [sigHtml, ...(await D.buildPages({ ...ctx.doc, signature: null }, ctx.co, []))];
+    const jp = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+    const pw = jp.internal.pageSize.getWidth(), ph = jp.internal.pageSize.getHeight();
+    for (let i = 0; i < extra.length; i++) {
+      const c = await D.pageCanvas(extra[i]);
+      if (i) jp.addPage();
+      jp.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pw, ph);
+    }
+    const out = await PDFDocument.create();
+    const add = async (bytes) => { const src = await PDFDocument.load(bytes, { ignoreEncryption: true }); (await out.copyPages(src, src.getPageIndices())).forEach((pg) => out.addPage(pg)); };
+    await add(await fileBytes(ctx.co.contract_file_url));
+    await add(jp.output('arraybuffer'));
+    const bytes = await out.save();
+    return { save(name) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); } };
   }
 
   // ---------------- PDF pages ----------------
@@ -289,6 +434,7 @@
   async function toPdf(doc, co) {
     if (!window.jspdf || !window.html2canvas) throw new Error('The PDF library did not load. Check your connection and refresh.');
     const ctx = ctxFor(doc, co);
+    if (isUpload(ctx.co)) return uploadPdf(ctx);
     const all = [...(await pages(ctx)), ...(await D.buildPages({ ...ctx.doc, signature: null }, ctx.co, []))];
     const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
     const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
@@ -344,5 +490,5 @@
     };
   }
 
-  window.Contract = { stateOf, contractState, issues, blocks, render, ctxFor, pages, toPdf, pad, addBusinessDays };
+  window.Contract = { stateOf, contractState, issues, blocks, render, ctxFor, pages, toPdf, pad, addBusinessDays, isUpload, mount, inspect };
 })();

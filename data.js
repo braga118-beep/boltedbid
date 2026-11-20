@@ -128,6 +128,11 @@
       return { path: null, url };
     },
     async removePhotoFile() {},
+    async uploadContract(file) {
+      if (file.size > 3 * 1024 * 1024) throw new Error('In demo mode, contract files are limited to 3 MB. Connect your database to upload up to 10 MB.');
+      const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+      return { path: null, url };
+    },
     onEvent(cb) { window.addEventListener('storage', (e) => { if (e.key === this.key) cb(); }); },
     async signOut() {}
   };
@@ -148,10 +153,19 @@
       if (error) throw error;
       return data.user;
     },
-    async signUp(email, password) {
-      const { data, error } = await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href.split('#')[0] } });
+    async signUp(email, password, meta) {
+      // The confirmation email opens the app itself, wherever the sign-up started.
+      const { data, error } = await this.sb.auth.signUp({ email, password, options: { emailRedirectTo: new URL('app.html', location.href).href, data: meta || {} } });
       if (error) throw error;
       return data;
+    },
+    async resetPassword(email) {
+      const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo: new URL('app.html', location.href).href });
+      if (error) throw error;
+    },
+    async updatePassword(password) {
+      const { error } = await this.sb.auth.updateUser({ password });
+      if (error) throw error;
     },
     async signOut() { await this.sb.auth.signOut(); },
     async list(t) {
@@ -214,6 +228,17 @@
       const { error } = await this.sb.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
       if (error) throw new Error(error.message);
       return { path, url: this.sb.storage.from('photos').getPublicUrl(path).data.publicUrl };
+    },
+    // Each upload gets its own file name and old files are kept, so contracts already signed
+    // keep pointing at the exact file the customer signed.
+    async uploadContract(file) {
+      const { data } = await this.sb.auth.getSession();
+      if (!data.session) throw new Error('You are signed out. Sign in again.');
+      const base = (file.name || 'contract').replace(/\.pdf$/i, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'contract';
+      const path = `${data.session.user.id}/${Date.now().toString(36)}-${base}.pdf`;
+      const { error } = await this.sb.storage.from('contracts').upload(path, file, { contentType: 'application/pdf', upsert: false });
+      if (error) throw new Error(/bucket/i.test(error.message) ? 'Contract uploads are not set up yet. Run upgrade-6.sql in Supabase.' : error.message);
+      return { path, url: this.sb.storage.from('contracts').getPublicUrl(path).data.publicUrl };
     },
     async removePhotoFile(path) {
       if (path) await this.sb.storage.from('photos').remove([path]);
