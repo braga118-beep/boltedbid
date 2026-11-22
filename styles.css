@@ -871,3 +871,29 @@ body { overflow-x: clip; }
 .ad-m .btn-row { margin-top: 10px; align-items: center; }
 @media (max-width: 1100px) { .ad-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .ad-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .acct-bar { margin: 0 12px 12px; } }
+
+/* ---------- Team time clock ---------- */
+.nav-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: var(--amber); color: #fff; font-size: 12px; font-weight: 700; vertical-align: 1px; }
+.team-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; margin-bottom: 16px; }
+.tm-card { border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; background: #fff; margin-bottom: 16px; }
+.team-top .tm-card { margin-bottom: 0; }
+.tm-card h2 { font-size: 17px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.tm-card .count { font-size: 13px; background: var(--soft, #F1F4F2); color: var(--muted); border-radius: 999px; padding: 1px 9px; font-weight: 700; }
+.tm-pend { border-color: #E9D3A4; background: #FFFBF2; }
+.tm-code { font-size: 30px; font-weight: 700; letter-spacing: .08em; font-variant-numeric: tabular-nums; margin: 12px 0 14px; color: var(--spruce); }
+.tm-now { list-style: none; margin: 6px 0 0; padding: 0; display: grid; }
+.tm-now li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-2); }
+.tm-now li:first-child { border-top: 0; }
+.tm-now .warn { color: var(--amber); font-size: 13px; font-weight: 600; }
+.tm-dur { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 18px; }
+.tm-wk { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.tm-wk h2, .tm-wk h3 { margin: 0; }
+.tm-wl { font-weight: 600; padding: 0 6px; }
+.tm-tbl td, .tm-tbl th { white-space: nowrap; }
+.tm-tbl tr.click { cursor: pointer; }
+.tm-tbl tr.click:hover td { background: #F7FAF8; }
+.tm-jobs { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; max-width: 460px; }
+.tm-jobs li { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+.sub-row td { padding-top: 0 !important; border-top: 0 !important; }
+label.inline { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 820px) { .team-top { grid-template-columns: 1fr; } .tm-code { font-size: 26px; } }

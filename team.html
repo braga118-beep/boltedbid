@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1F4E46">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="BB Time Clock">
+  <title>BoltedBid Time Clock</title>
+  <link rel="manifest" href="team.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink: #16202A; --ink-2: #3A4652; --muted: #6B7682; --line: #DDE2E0; --soft: #F1F4F2; --bg: #F6F5F1; --spruce: #1F4E46; --spruce-2: #2A6A5E; --deep: #102F2A; --gold: #E2BE76; --red: #A8432F; --red-tint: #FBEDEA; --green: #2D6F47; --green-tint: #E6F2EA; --amber: #8A5A12; --amber-tint: #FBF1DE; --font: "Instrument Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; min-height: 100%; }
+    body { font: 16px/1.5 var(--font); color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; padding-bottom: env(safe-area-inset-bottom); }
+    a { color: var(--spruce-2); }
+    h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.15; }
+    p { margin: 0; }
+    .top { background: var(--deep); color: #F4F1EA; padding: calc(14px + env(safe-area-inset-top)) 18px 14px; display: flex; align-items: center; gap: 10px; }
+    .top img { width: 26px; height: 26px; }
+    .top .t { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .top .t b { color: var(--gold); }
+    .top .t span { font-weight: 500; color: #9FB4AE; font-size: 14px; margin-left: 6px; }
+    .top button { margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,.2); color: #F4F1EA; border-radius: 10px; padding: 7px 12px; font: 600 14px var(--font); cursor: pointer; }
+    main { max-width: 520px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 16px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+    .sub { color: var(--muted); font-size: 14.5px; }
+    label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+    input, select { font: 16px var(--font); padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); width: 100%; }
+    input:focus, select:focus { outline: none; border-color: var(--spruce); box-shadow: 0 0 0 3px rgba(31,78,70,.15); }
+    form { display: grid; gap: 14px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 20px; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: 600 16px var(--font); cursor: pointer; text-decoration: none; }
+    .btn.primary { background: var(--spruce); border-color: var(--spruce); color: #fff; }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn.wide { width: 100%; }
+    .link { background: none; border: 0; padding: 0; color: var(--spruce-2); font: 600 15px var(--font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--soft); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
+    .seg button { border: 0; background: transparent; padding: 10px; border-radius: 9px; font: 600 15px var(--font); color: var(--muted); cursor: pointer; }
+    .seg button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(22,32,42,.08); }
+    .msg { font-size: 14.5px; min-height: 20px; }
+    .msg.err { color: var(--red); }
+    .msg.ok { color: var(--green); }
+    .hello h1 { font-size: 26px; }
+    .co { display: flex; align-items: center; gap: 10px; margin-top: 4px; color: var(--ink-2); font-weight: 600; }
+    .co .logo { width: 34px; height: 34px; border-radius: 8px; background: var(--soft) center / contain no-repeat; flex: none; }
+    .clock { text-align: center; padding: 26px 20px; }
+    .state { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; padding: 6px 12px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+    .state.on { background: var(--green-tint); color: var(--green); }
+    .state.on::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.6s infinite; }
+    @keyframes pulse { 50% { opacity: .3; } }
+    .timer { font-size: 54px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin: 14px 0 2px; }
+    .since { color: var(--muted); }
+    .punch { margin-top: 22px; width: 100%; min-height: 76px; border-radius: 20px; border: 0; font: 700 22px var(--font); color: #fff; background: var(--spruce); cursor: pointer; box-shadow: 0 12px 30px rgba(31,78,70,.28); transition: transform .1s; }
+    .punch:active { transform: scale(.98); }
+    .punch.out { background: var(--red); box-shadow: 0 12px 30px rgba(168,67,47,.25); }
+    .punch:disabled { opacity: .6; }
+    .clock select { margin-top: 18px; }
+    .loc { font-size: 13px; color: var(--muted); margin-top: 12px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+    .stat span { font-size: 13px; color: var(--muted); font-weight: 600; }
+    .stat b { display: block; font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .shifts { list-style: none; margin: 10px 0 0; padding: 0; display: grid; }
+    .shifts li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .shifts li:first-child { border-top: 0; }
+    .shifts .d { font-weight: 600; }
+    .shifts .h { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .note { background: var(--amber-tint); color: var(--amber); border-radius: 14px; padding: 14px 16px; font-size: 15px; }
+    .center { text-align: center; }
+    .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.25); z-index: 10; max-width: calc(100% - 32px); }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <img src="icons/mark.svg" alt="">
+    <div class="t">Bolted<b>Bid</b><span>Time Clock</span></div>
+    <button id="out" hidden>Sign out</button>
+  </header>
+  <main id="main"><p class="sub center">Loading</p></main>
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="config.js?v=20261122"></script>
+  <script>
+  (function () {
+    const $ = (s, el = document) => el.querySelector(s);
+    const main = $('#main');
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const toast = (t) => { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (el.hidden = true), 3500); };
+    const cfg = window.APP_CONFIG || {};
+    if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) { main.innerHTML = '<div class="card"><h2>Time clock</h2><p class="sub">The time clock works on boltedbid.com once the database is connected.</p></div>'; return; }
+    const sb = window.supabase.createClient(new URL(String(cfg.SUPABASE_URL).trim()).origin, String(cfg.SUPABASE_ANON_KEY).trim());
+    const here = new URL('team.html', location.href).href;
+    let user = null, team = null, tick = null;
+
+    const fmtTime = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const fmtDay = (iso) => new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const hm = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
+    const hms = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+    const friendly = (e) => {
+      const m = (e && e.message) || String(e);
+      if (/invalid login/i.test(m)) return 'That email and password don\'t match.';
+      if (/already registered/i.test(m)) return 'That email already has an account. Sign in instead.';
+      if (/email not confirmed/i.test(m)) return 'Confirm your email first. Check your inbox for the link.';
+      if (/signups not allowed/i.test(m)) return 'New sign-ups are turned off right now. Please tell your employer.';
+      return m;
+    };
+    const say = (el, t, ok) => { el.textContent = t; el.className = 'msg ' + (ok ? 'ok' : 'err'); };
+
+    // Location: asked for at each punch so your employer can confirm you were on site.
+    const where = () => new Promise((res) => {
+      if (!navigator.geolocation) return res(null);
+      navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }), () => res(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    });
+
+    // ---------- Sign in / create employee account ----------
+    function authView(mode = 'up', note = '', ok = false) {
+      $('#out').hidden = true;
+      const code = new URLSearchParams(location.search).get('code') || '';
+      main.innerHTML = `
+        <div class="card">
+          <h1 style="font-size:24px">${mode === 'up' ? 'Employee sign up' : 'Employee sign in'}</h1>
+          <p class="sub" style="margin:6px 0 18px">${mode === 'up' ? 'Create your login to punch in and out. Ask your employer for the company code.' : 'Sign in to punch in and out.'}</p>
+          <div class="seg" role="tablist"><button type="button" data-m="up" aria-selected="${mode === 'up'}">Create account</button><button type="button" data-m="in" aria-selected="${mode === 'in'}">Sign in</button></div>
+          <form id="f" novalidate>
+            ${mode === 'up' ? `<label>Company code<input name="code" required autocapitalize="characters" autocomplete="off" placeholder="ABCD-1234" value="${esc(code)}"></label>
+            <label>Your full name<input name="name" required autocomplete="name"></label>
+            <label>Phone<input name="phone" type="tel" autocomplete="tel"></label>` : ''}
+            <label>Email<input name="email" type="email" required autocomplete="email"></label>
+            <label>Password<input name="password" type="password" required minlength="8" autocomplete="${mode === 'up' ? 'new-password' : 'current-password'}" ${mode === 'up' ? 'placeholder="At least 8 characters"' : ''}></label>
+            <button class="btn primary wide" type="submit">${mode === 'up' ? 'Create my account' : 'Sign in'}</button>
+            <p class="msg ${ok ? 'ok' : 'err'}" id="m">${esc(note)}</p>
+            ${mode === 'in' ? '<p class="center"><button type="button" class="link" id="fp">Forgot your password?</button></p>' : ''}
+          </form>
+        </div>
+        <p class="sub center">Business owner? <a href="./">Go to BoltedBid</a></p>`;
+      main.querySelectorAll('[data-m]').forEach((b) => (b.onclick = () => authView(b.dataset.m)));
+      const f = $('#f'), m = $('#m');
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        const v = Object.fromEntries(new FormData(f));
+        const b = f.querySelector('button[type=submit]'); b.disabled = true;
+        try {
+          if (mode === 'up') {
+            if (!String(v.code || '').trim()) throw new Error('Enter the company code from your employer.');
+            if (!String(v.name || '').trim()) throw new Error('Enter your name.');
+            if (String(v.password).length < 8) throw new Error('Use a password with at least 8 characters.');
+            const r = await sb.auth.signUp({ email: v.email.trim(), password: v.password, options: { emailRedirectTo: here, data: { role: 'employee', full_name: v.name.trim(), phone: (v.phone || '').trim(), join_code: v.code.trim().toUpperCase() } } });
+            if (r.error) throw r.error;
+            if (!r.data.session) { authView('in', 'Almost done. Check your email and tap the confirmation link, then sign in here.', true); return; }
+          } else {
+            const r = await sb.auth.signInWithPassword({ email: v.email.trim(), password: v.password });
+            if (r.error) throw r.error;
+          }
+          await start();
+        } catch (err) { say(m, friendly(err)); b.disabled = false; }
+      };
+      if ($('#fp')) $('#fp').onclick = async () => {
+        const email = f.email.value.trim();
+        if (!email) { say(m, 'Type your email above first.'); return; }
+        const r = await sb.auth.resetPasswordForEmail(email, { redirectTo: here });
+        if (r.error) say(m, friendly(r.error)); else say(m, 'Check your email for a link to choose a new password.', true);
+      };
+    }
+
+    function newPasswordView() {
+      main.innerHTML = `<div class="card"><h1 style="font-size:24px">Choose a new password</h1><form id="np" style="margin-top:16px"><label>New password<input type="password" name="p" minlength="8" required autocomplete="new-password"></label><button class="btn primary wide">Save password</button><p class="msg" id="m"></p></form></div>`;
+      $('#np').onsubmit = async (e) => {
+        e.preventDefault();
+        const r = await sb.auth.updateUser({ password: e.target.p.value });
+        if (r.error) say($('#m'), friendly(r.error)); else { toast('Password saved'); start(); }
+      };
+    }
+
+    // ---------- Join a company ----------
+    function joinView(note) {
+      const meta = (user && user.user_metadata) || {};
+      main.innerHTML = `<div class="card"><h1 style="font-size:24px">Join your company</h1><p class="sub" style="margin:6px 0 16px">Enter the code your employer gave you.</p>
+        <form id="j"><label>Company code<input name="code" required autocapitalize="characters" placeholder="ABCD-1234" value="${esc(meta.join_code || '')}"></label>
+        <label>Your full name<input name="name" required value="${esc(meta.full_name || '')}"></label><label>Phone<input name="phone" type="tel" value="${esc(meta.phone || '')}"></label>
+        <button class="btn primary wide">Join</button><p class="msg err" id="m">${esc(note || '')}</p></form></div>`;
+      $('#j').onsubmit = async (e) => {
+        e.preventDefault();
+        const v = Object.fromEntries(new FormData(e.target));
+        const r = await sb.rpc('join_company', { p_code: v.code, p_name: v.name, p_phone: v.phone });
+        if (r.error) { say($('#m'), friendly(r.error)); return; }
+        start();
+      };
+    }
+
+    // ---------- Punch clock ----------
+    async function clockView() {
+      const e = team.employee, c = team.company;
+      const name = (e.name || '').split(' ')[0];
+      if (e.status === 'pending') {
+        main.innerHTML = `<div class="card hello"><h1>Hi ${esc(name)}</h1><div class="co">${c.logo ? `<span class="logo" style="background-image:url('${esc(c.logo)}')"></span>` : ''}${esc(c.name)}</div></div>
+          <div class="note">You've asked to join <b>${esc(c.name)}</b>. You can punch in as soon as they approve you.</div>
+          <button class="btn wide" id="re">Check again</button>`;
+        $('#re').onclick = start; return;
+      }
+      if (e.status === 'removed') {
+        main.innerHTML = `<div class="card"><h1 style="font-size:24px">You're no longer on ${esc(c.name)}'s team</h1><p class="sub" style="margin-top:8px">If this is a mistake, talk to your employer. To join another company, use its code.</p><button class="btn wide" id="jn" style="margin-top:16px">Join with a code</button></div>`;
+        $('#jn').onclick = () => joinView(); return;
+      }
+      // This week's and recent shifts
+      const now = new Date();
+      const wk = new Date(now); wk.setHours(0, 0, 0, 0); wk.setDate(wk.getDate() - ((wk.getDay() + 6) % 7)); // Monday
+      const since = new Date(wk); since.setDate(since.getDate() - 14);
+      const { data: rows } = await sb.from('time_entries').select('*').eq('employee_id', e.id).gte('clock_in', since.toISOString()).order('clock_in', { ascending: false });
+      const list = rows || [];
+      const dur = (t) => (t.clock_out ? new Date(t.clock_out) : new Date()) - new Date(t.clock_in);
+      const weekMs = () => list.filter((t) => new Date(t.clock_in) >= wk).reduce((s, t) => s + dur(t), 0);
+      const todayMs = () => { const d0 = new Date(); d0.setHours(0, 0, 0, 0); return list.filter((t) => new Date(t.clock_in) >= d0).reduce((s, t) => s + dur(t), 0); };
+      const open = team.open;
+      const jobName = (id) => (team.jobs.find((j) => j.id === id) || {}).name;
+      main.innerHTML = `
+        <div class="card hello"><h1>Hi ${esc(name)}</h1><div class="co">${c.logo ? `<span class="logo" style="background-image:url('${esc(c.logo)}')"></span>` : ''}${esc(c.name)}</div></div>
+        ${team.company_active ? '' : '<div class="note">Punching in is paused for this company right now. Please tell your employer.</div>'}
+        <div class="card clock">
+          <span class="state ${open ? 'on' : ''}">${open ? 'On the clock' : 'Off the clock'}</span>
+          <div class="timer" id="tm">${open ? hms(Date.now() - new Date(open.clock_in)) : '0:00:00'}</div>
+          <p class="since">${open ? `Since ${esc(fmtTime(open.clock_in))}, ${esc(fmtDay(open.clock_in))}${open.job_id && jobName(open.job_id) ? ` · ${esc(jobName(open.job_id))}` : ''}` : 'Tap below when you start working.'}</p>
+          ${!open && team.jobs.length ? `<select id="job" aria-label="Job"><option value="">Which job? (optional)</option>${team.jobs.map((j) => `<option value="${esc(j.id)}">${esc(j.name)}${j.address ? ' · ' + esc(j.address.split('\n')[0]) : ''}</option>`).join('')}</select>` : ''}
+          <button class="punch ${open ? 'out' : ''}" id="pb" ${team.company_active || open ? '' : 'disabled'}>${open ? 'Punch out' : 'Punch in'}</button>
+          <p class="loc">Your location is recorded when you punch in and out, so your employer can confirm the job site.</p>
+        </div>
+        <div class="stats"><div class="stat"><span>Today</span><b id="td">${hm(todayMs())}</b></div><div class="stat"><span>This week</span><b id="tw">${hm(weekMs())}</b></div></div>
+        <div class="card"><h3>Recent shifts</h3>
+          <ul class="shifts">${list.length ? list.slice(0, 20).map((t) => `<li><div><div class="d">${esc(fmtDay(t.clock_in))}</div><div class="sub">${esc(fmtTime(t.clock_in))} – ${t.clock_out ? esc(fmtTime(t.clock_out)) : 'now'}${t.job_id && jobName(t.job_id) ? ' · ' + esc(jobName(t.job_id)) : ''}</div></div><div class="h">${hm(dur(t))}</div></li>`).join('') : '<li class="sub">No shifts yet.</li>'}</ul>
+        </div>`;
+      clearInterval(tick);
+      if (open) tick = setInterval(() => { $('#tm').textContent = hms(Date.now() - new Date(open.clock_in)); $('#td').textContent = hm(todayMs()); $('#tw').textContent = hm(weekMs()); }, 1000);
+      $('#pb').onclick = async () => {
+        const b = $('#pb'); b.disabled = true; b.textContent = 'Getting your location';
+        const loc = await where();
+        b.textContent = open ? 'Punching out' : 'Punching in';
+        const r = open
+          ? await sb.rpc('punch_out', { p_lat: loc && loc.lat, p_lng: loc && loc.lng, p_acc: loc && loc.acc, p_note: null })
+          : await sb.rpc('punch_in', { p_job: ($('#job') && $('#job').value) || null, p_lat: loc && loc.lat, p_lng: loc && loc.lng, p_acc: loc && loc.acc });
+        if (r.error) { toast(friendly(r.error)); start(); return; }
+        if (navigator.vibrate) navigator.vibrate(40);
+        toast(open ? `Punched out at ${fmtTime(r.data.clock_out)}` : `Punched in at ${fmtTime(r.data.clock_in)}`);
+        start();
+      };
+    }
+
+    async function start() {
+      clearInterval(tick);
+      const { data } = await sb.auth.getSession();
+      user = data.session && data.session.user;
+      if (!user) return authView(new URLSearchParams(location.search).get('code') ? 'up' : 'in');
+      $('#out').hidden = false;
+      const r = await sb.rpc('my_team');
+      if (r.error) { main.innerHTML = `<div class="card"><p class="msg err">${esc(/function/i.test(r.error.message) ? 'The time clock isn\'t set up yet. Please tell your employer.' : r.error.message)}</p></div>`; return; }
+      team = r.data;
+      if (!team.joined) {
+        // Just signed up: join the company from the code they entered.
+        const meta = user.user_metadata || {};
+        if (meta.join_code) {
+          const j = await sb.rpc('join_company', { p_code: meta.join_code, p_name: meta.full_name || '', p_phone: meta.phone || '' });
+          if (!j.error) return start();
+          return joinView(friendly(j.error));
+        }
+        if (meta.role !== 'employee') {
+          main.innerHTML = `<div class="card"><h1 style="font-size:22px">This page is for employees</h1><p class="sub" style="margin:8px 0 16px">You're signed in with a BoltedBid business account.</p><a class="btn primary wide" href="app.html#/team">Open your Team page</a><p class="center" style="margin-top:12px"><button class="link" id="jn">I'm an employee, join with a code</button></p></div>`;
+          $('#jn').onclick = () => joinView(); return;
+        }
+        return joinView();
+      }
+      clockView();
+    }
+
+    $('#out').onclick = async () => { await sb.auth.signOut(); location.replace('team.html'); };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && user) start(); });
+    const recovering = /type=recovery/.test(location.hash);
+    sb.auth.getSession().then(() => { if (recovering) { history.replaceState(null, '', 'team.html'); newPasswordView(); } else { if (/access_token=/.test(location.hash)) history.replaceState(null, '', 'team.html'); start(); } });
+  })();
+  </script>
+</body>
+</html>

@@ -168,6 +168,7 @@
       return;
     }
     if (S.mode === 'cloud' && recovering && S.user) return renderNewPassword();
+    if (S.user && S.user.user_metadata && S.user.user_metadata.role === 'employee') { location.replace('team.html'); return; }
     if (/access_token=|type=signup/.test(location.hash)) history.replaceState(null, '', location.pathname + '#/dashboard');
     if (S.mode === 'cloud' && !S.user) return renderAuth();
     startApp();
@@ -208,6 +209,9 @@
     S.needsUpgrade5 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_after_accept' in companies[0]);
     S.needsUpgrade6 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_mode' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
+    S.employees = await Store.list('employees').catch(() => null);
+    S.needsUpgrade8 = S.mode === 'cloud' && S.employees === null && !S.needsUpgrade3;
+    S.employees = S.employees || [];
     const acc = await Store.myAccount().catch(() => ({}));
     S.account = acc.account || null;
     S.isAdmin = !!acc.admin;
@@ -297,7 +301,7 @@
       if (menuEl) { closeMenus(); return; }
       openMenu(e.currentTarget, [
         { label: 'Change orders', run: () => go('#/change_orders') }, { label: 'Customers', run: () => go('#/customers') },
-        { label: 'Price book', run: () => go('#/pricebook') }, { label: 'Companies', run: () => go('#/companies') }, { label: 'Settings', run: () => go('#/settings') },
+        { label: 'Team', run: () => go('#/team') }, { label: 'Price book', run: () => go('#/pricebook') }, { label: 'Companies', run: () => go('#/companies') }, { label: 'Settings', run: () => go('#/settings') },
         ...(S.isAdmin ? [{ label: 'Admin', run: () => go('#/admin') }] : [])]);
     };
     document.addEventListener('click', (e) => { if (menuEl && !menuEl.contains(e.target)) closeMenus(); });
@@ -320,11 +324,13 @@
       : `<p>${esc(S.user && S.user.email)}</p>`;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql', S.needsUpgrade7 && 'upgrade-7.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql', S.needsUpgrade7 && 'upgrade-7.sql', S.needsUpgrade8 && 'upgrade-8.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : S.needsUpgrade6 ? 'uploading your own contract' : 'accounts, free trials and your admin panel'}.`;
+    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : S.needsUpgrade6 ? 'uploading your own contract' : S.needsUpgrade7 ? 'accounts, free trials and your admin panel' : 'the Team time clock'}.`;
     renderAcctBar();
     $$('[data-nav="admin"]').forEach((x) => (x.hidden = !S.isAdmin));
+    const pend = S.employees.filter((e) => e.status === 'pending').length;
+    $$('[data-nav="team"]').forEach((x) => { x.innerHTML = 'Team' + (pend ? ` <span class="nav-badge">${pend}</span>` : ''); });
   }
 
   function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)); }
@@ -450,7 +456,7 @@
     if (p === 'job') nav = 'jobs';
     if (p === 'import') nav = 'settings';
     $$('[data-nav]').forEach((x) => x.classList.toggle('on', x.dataset.nav === nav));
-    $('#moreTab').classList.toggle('on', ['change_orders', 'customers', 'pricebook', 'companies', 'settings', 'admin'].includes(nav));
+    $('#moreTab').classList.toggle('on', ['change_orders', 'customers', 'pricebook', 'companies', 'settings', 'admin', 'team'].includes(nav));
     window.scrollTo(0, 0);
     switch (p) {
       case 'dashboard': return vDashboard(v);
@@ -458,6 +464,7 @@
       case 'invoices': return vList(v, 'invoice');
       case 'change_orders': return vList(v, 'change_order');
       case 'jobs': return vJobs(v);
+      case 'team': return vTeam(v);
       case 'job': return vJob(v, a);
       case 'doc': return vEditor(v, docById(a));
       case 'new': return vEditor(v, null, LIST_LABEL[a] ? a : 'estimate');
@@ -2963,6 +2970,170 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
         ${st.can ? '' : ' Your work is safe. You can view and download everything; choose a plan to keep creating and editing.'}</p>
       ${a.status === 'comped' ? '' : buttons ? `<div class="btn-row">${buttons}</div>` : `<p class="sub">Online payment is coming soon.${PLANS.support ? ' To subscribe now, contact ' + esc(PLANS.support) + '.' : ''}</p>`}
     </section>`;
+  }
+
+  // ---------------- Team time clock ----------------
+  function vTeam(v) {
+    if (S.needsUpgrade8) { v.innerHTML = '<div class="head"><h1>Team</h1></div><p class="sub">Run <b>upgrade-8.sql</b> in Supabase to turn on the Team time clock.</p>'; return; }
+    const T = { co: (S.companies.find((c) => c.id === S.filter) || S.companies[0] || {}).id, week: weekStart(new Date()), entries: [], open: [], pay: [] };
+    const empsOf = () => S.employees.filter((e) => e.company_id === T.co);
+    const coOf = () => company(T.co) || {};
+    const rateOf = (id) => { const r = T.pay.find((p) => p.employee_id === id); return r && r.hourly_rate != null ? Number(r.hourly_rate) : null; };
+    const jobName = (id) => { const j = (S.jobs || []).find((x) => x.id === id); return j ? j.name : ''; };
+    const hrs = (ms) => Math.round(ms / 36000) / 100;
+    const hm = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
+    const dur = (t) => (t.clock_out ? new Date(t.clock_out) : new Date()) - new Date(t.clock_in);
+    const tme = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const dayLbl = (d) => d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+    const map = (lat, lng) => (lat != null && lng != null ? `<a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener">map</a>` : '<span class="sub">no location</span>');
+    const local = (iso) => { const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+    function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+    const days = () => [...Array(7)].map((_, i) => { const d = new Date(T.week); d.setDate(d.getDate() + i); return d; });
+    const inviteLink = () => new URL('team.html?code=' + encodeURIComponent(coOf().join_code || ''), location.href).href;
+
+    // Weekly totals with overtime over 40 hours, paid at time and a half.
+    const sheet = (emp) => {
+      const mine = T.entries.filter((t) => t.employee_id === emp.id);
+      const perDay = days().map((d) => { const n = new Date(d); n.setDate(n.getDate() + 1); return mine.filter((t) => new Date(t.clock_in) >= d && new Date(t.clock_in) < n).reduce((s, t) => s + dur(t), 0); });
+      const total = perDay.reduce((s, x) => s + x, 0), reg = Math.min(total, 40 * 3600000), ot = Math.max(0, total - 40 * 3600000);
+      const rate = rateOf(emp.id);
+      return { mine, perDay, total, reg, ot, rate, pay: rate == null ? null : hrs(reg) * rate + hrs(ot) * rate * 1.5 };
+    };
+
+    async function load() {
+      const to = new Date(T.week); to.setDate(to.getDate() + 7);
+      try {
+        const [entries, open, pay, emps] = await Promise.all([Store.timeEntries(T.week.toISOString(), to.toISOString()), Store.openEntries(), Store.list('employee_pay').catch(() => []), Store.list('employees')]);
+        Object.assign(T, { entries: entries.filter((t) => t.company_id === T.co), open: open.filter((t) => t.company_id === T.co), pay });
+        S.employees = emps; renderChrome();
+      } catch (e) { toast('Could not load the time clock: ' + e.message, { type: 'error', ms: 8000 }); }
+      draw();
+    }
+
+    function draw() {
+      if (!location.hash.startsWith('#/team')) return;
+      const co = coOf(), emps = empsOf(), act = emps.filter((e) => e.status === 'active'), pend = emps.filter((e) => e.status === 'pending');
+      const rows = act.map((e) => ({ e, s: sheet(e) }));
+      const wkEnd = new Date(T.week); wkEnd.setDate(wkEnd.getDate() + 6);
+      const isThis = +T.week === +weekStart(new Date());
+      const tot = rows.reduce((a, r) => ({ total: a.total + r.s.total, ot: a.ot + r.s.ot, pay: a.pay + (r.s.pay || 0) }), { total: 0, ot: 0, pay: 0 });
+      const byJob = {};
+      T.entries.forEach((t) => { const k = t.job_id || ''; byJob[k] = (byJob[k] || 0) + dur(t); });
+      v.innerHTML = `
+        <div class="head"><div><h1>Team</h1><p class="sub">Employees punch in and out on their phone at <a href="team.html" target="_blank" rel="noopener">${esc(location.host || 'boltedbid.com')}/team</a>.</p></div>
+          ${S.companies.length > 1 ? `<label class="inline">Company <select id="tCo">${S.companies.map((c) => `<option value="${c.id}" ${c.id === T.co ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}</div>
+        <div class="team-top">
+          <section class="tm-card"><h2>Invite employees</h2>
+            <p class="sub">Send them this link, or have them go to the time clock and enter the code. You approve each person before they can punch in.</p>
+            <div class="tm-code">${esc(co.join_code || 'Run upgrade-8.sql')}</div>
+            <div class="btn-row"><button class="btn primary" id="tInv">Copy invite</button><button class="btn" id="tNew">New code</button></div>
+          </section>
+          <section class="tm-card"><h2>On the clock now <span class="count">${T.open.length}</span></h2>
+            ${T.open.length ? `<ul class="tm-now">${T.open.map((t) => { const e = S.employees.find((x) => x.id === t.employee_id) || {}; const long = dur(t) > 14 * 3600000; return `<li><div><b>${esc(e.full_name || 'Employee')}</b><div class="sub">Since ${esc(tme(t.clock_in))}${t.job_id ? ' · ' + esc(jobName(t.job_id)) : ''} · ${map(t.in_lat, t.in_lng)}</div>${long ? '<div class="warn">Still punched in after 14 hours. Forgot to punch out?</div>' : ''}</div><span class="tm-dur">${hm(dur(t))}</span></li>`; }).join('')}</ul>` : '<p class="sub">Nobody is punched in.</p>'}
+          </section>
+        </div>
+        ${pend.length ? `<section class="tm-card tm-pend"><h2>Waiting for approval <span class="count">${pend.length}</span></h2>
+          <ul class="tm-now">${pend.map((e) => `<li><div><b>${esc(e.full_name || 'New employee')}</b><div class="sub">${esc(e.email || '')}${e.phone ? ' · ' + esc(e.phone) : ''} · asked ${esc(fmtDate(String(e.created_at).slice(0, 10)))}</div></div><div class="btn-row"><button class="btn primary" data-ok="${e.id}">Approve</button><button class="btn" data-no="${e.id}">Decline</button></div></li>`).join('')}</ul></section>` : ''}
+        <section class="tm-card">
+          <div class="tm-wk"><h2>Timesheet</h2>
+            <div class="btn-row"><button class="btn" id="tPrev" aria-label="Previous week">‹</button><span class="tm-wl">${esc(T.week.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} – ${esc(wkEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))}${isThis ? ' · this week' : ''}</span><button class="btn" id="tNext" aria-label="Next week" ${isThis ? 'disabled' : ''}>›</button><button class="btn" id="tCsv">Export CSV</button></div></div>
+          <div class="tbl-wrap"><table class="tbl tm-tbl"><thead><tr><th>Employee</th>${days().map((d) => `<th class="n">${esc(dayLbl(d))}</th>`).join('')}<th class="n">Total</th><th class="n">Overtime</th><th class="n">Pay</th></tr></thead>
+            <tbody>${rows.length ? rows.map(({ e, s }) => `<tr data-emp="${e.id}" class="click"><td><b>${esc(e.full_name || e.email)}</b>${s.rate != null ? `<div class="sub">${money(s.rate)}/hr</div>` : '<div class="sub">No rate set</div>'}</td>${s.perDay.map((x) => `<td class="n">${x ? hm(x) : '<span class="sub">–</span>'}</td>`).join('')}<td class="n"><b>${hm(s.total)}</b></td><td class="n">${s.ot ? hm(s.ot) : '–'}</td><td class="n">${s.pay != null ? money(s.pay) : '–'}</td></tr>`).join('') : `<tr><td colspan="11" class="sub">No approved employees yet. Copy the invite above and send it to your crew.</td></tr>`}</tbody>
+            ${rows.length ? `<tfoot><tr><td>Total</td>${days().map(() => '<td></td>').join('')}<td class="n"><b>${hm(tot.total)}</b></td><td class="n">${tot.ot ? hm(tot.ot) : '–'}</td><td class="n">${tot.pay ? money(tot.pay) : '–'}</td></tr></tfoot>` : ''}</table></div>
+          <p class="sub">Tap an employee to see each punch, fix times, add missing time or set their hourly rate. Overtime counts hours over 40 in the week, paid at 1.5×.</p>
+          ${Object.keys(byJob).length ? `<h3 class="k-subhead">Hours by job this week</h3><ul class="tm-jobs">${Object.entries(byJob).sort((a, b) => b[1] - a[1]).map(([k, ms]) => `<li><span>${esc(k ? jobName(k) || 'Job' : 'No job picked')}</span><b>${hm(ms)}</b></li>`).join('')}</ul>` : ''}
+        </section>
+        ${emps.some((e) => e.status === 'removed') ? `<p class="sub">Removed: ${emps.filter((e) => e.status === 'removed').map((e) => esc(e.full_name || e.email)).join(', ')}. Their past hours are kept.</p>` : ''}`;
+      if ($('#tCo')) $('#tCo').onchange = (e) => { T.co = e.target.value; load(); };
+      $('#tInv').onclick = async () => {
+        const text = `You're invited to ${co.name}'s time clock on BoltedBid. Open this link on your phone, create your login, and add it to your home screen:\n${inviteLink()}\nCompany code: ${co.join_code}`;
+        try { await navigator.clipboard.writeText(text); toast('Invite copied. Paste it in a text or email to your employee.'); } catch (e) { prompt('Copy this invite:', text); }
+      };
+      $('#tNew').onclick = async () => {
+        if (!confirm('Make a new code? The current code stops working. Employees who already joined are not affected.')) return;
+        try { const code = await Store.regenerateJoinCode(T.co); co.join_code = code; draw(); toast('New code: ' + code); } catch (e) { toast(e.message, { type: 'error' }); }
+      };
+      $$('[data-ok]').forEach((b) => (b.onclick = () => setStatus(b.dataset.ok, 'active')));
+      $$('[data-no]').forEach((b) => (b.onclick = () => { if (confirm('Decline this person? They won\'t be able to punch in.')) setStatus(b.dataset.no, 'removed'); }));
+      $('#tPrev').onclick = () => { T.week.setDate(T.week.getDate() - 7); load(); };
+      $('#tNext').onclick = () => { T.week.setDate(T.week.getDate() + 7); load(); };
+      $('#tCsv').onclick = () => {
+        const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
+        const lines = [['Employee', 'Date', 'Punch in', 'Punch out', 'Hours', 'Job', 'Note', 'Added or edited by owner', 'In location', 'Out location'].map(q).join(',')];
+        T.entries.slice().sort((a, b) => (a.clock_in < b.clock_in ? -1 : 1)).forEach((t) => {
+          const e = S.employees.find((x) => x.id === t.employee_id) || {};
+          lines.push([e.full_name, new Date(t.clock_in).toLocaleDateString('en-US'), tme(t.clock_in), t.clock_out ? tme(t.clock_out) : 'still in', hrs(dur(t)).toFixed(2), jobName(t.job_id), t.note, t.source === 'owner' || t.edited_at ? 'yes' : '', t.in_lat != null ? `${t.in_lat},${t.in_lng}` : '', t.out_lat != null ? `${t.out_lat},${t.out_lng}` : ''].map(q).join(','));
+        });
+        lines.push('');
+        rows.forEach(({ e, s }) => lines.push([e.full_name, 'Week total', '', '', hrs(s.total).toFixed(2), `Overtime ${hrs(s.ot).toFixed(2)}`, s.pay != null ? `Pay ${s.pay.toFixed(2)}` : ''].map(q).join(',')));
+        saveBlob(new Blob([lines.join('\n')], { type: 'text/csv' }), `Timesheet ${co.name} ${T.week.toISOString().slice(0, 10)}.csv`);
+      };
+      $$('[data-emp]').forEach((r) => (r.onclick = () => person(S.employees.find((e) => e.id === r.dataset.emp))));
+    }
+
+    async function setStatus(id, status) {
+      try {
+        const up = await Store.upsert('employees', { id, status, approved_at: status === 'active' ? new Date().toISOString() : undefined });
+        upsertLocal(S.employees, up); toast(status === 'active' ? 'Approved. They can punch in now.' : status === 'removed' ? 'Removed from your team' : 'Saved');
+        renderChrome(); draw();
+      } catch (e) { toast(e.message, { type: 'error', ms: 8000 }); }
+    }
+
+    function person(e) {
+      const s = sheet(e);
+      modal(`<div class="pv-head"><h2>${esc(e.full_name || e.email)}</h2><div class="btn-row"><button class="btn" data-close>Close</button></div></div>
+        <p class="sub">${esc(e.email || '')}${e.phone ? ' · ' + esc(e.phone) : ''} · joined ${esc(fmtDate(String(e.created_at).slice(0, 10)))}</p>
+        <div class="ad-m">
+          <section><h3>Hourly rate</h3><div class="btn-row"><input type="number" id="pRate" step="0.01" min="0" placeholder="0.00" value="${s.rate != null ? s.rate : ''}" style="max-width:140px"><button class="btn" id="pRateSave">Save rate</button></div><p class="sub">Only you can see this. It's used for the Pay column.</p></section>
+          <section><div class="tm-wk"><h3>This week's punches</h3><button class="btn" id="pAdd">Add time</button></div>
+            <table class="tbl"><thead><tr><th>Day</th><th>In</th><th>Out</th><th class="n">Hours</th><th>Job</th><th></th></tr></thead><tbody>
+            ${s.mine.length ? s.mine.map((t) => `<tr><td>${esc(dayLbl(new Date(t.clock_in)))}${t.source === 'owner' ? ' <span class="pill">added</span>' : t.edited_at ? ' <span class="pill partial">edited</span>' : ''}</td><td>${esc(tme(t.clock_in))} <span class="sub">${map(t.in_lat, t.in_lng)}</span></td><td>${t.clock_out ? `${esc(tme(t.clock_out))} <span class="sub">${map(t.out_lat, t.out_lng)}</span>` : '<b>still in</b>'}</td><td class="n">${hm(dur(t))}</td><td>${esc(jobName(t.job_id))}</td><td class="n"><button class="link small" data-ed="${t.id}">Edit</button></td></tr>${t.note || t.edit_note ? `<tr class="sub-row"><td colspan="6" class="sub">${t.note ? 'Note: ' + esc(t.note) : ''}${t.edit_note ? ' Change: ' + esc(t.edit_note) : ''}</td></tr>` : ''}`).join('') : '<tr><td colspan="6" class="sub">No punches this week.</td></tr>'}
+            </tbody></table></section>
+          <section><h3>Team access</h3><p class="sub">Removing someone stops them punching in. Their past hours are kept.</p><div class="btn-row"><button class="btn danger" id="pRm">Remove from team</button></div></section>
+        </div>`, (w, close) => {
+        $('#pRateSave', w).onclick = async () => {
+          const r = $('#pRate', w).value === '' ? null : Number($('#pRate', w).value);
+          try { const row = await Store.setRate(e.id, r); T.pay = T.pay.filter((p) => p.employee_id !== e.id).concat(row); toast('Rate saved'); draw(); } catch (err) { toast(err.message, { type: 'error' }); }
+        };
+        $('#pRm', w).onclick = async () => { if (confirm(`Remove ${e.full_name || 'this employee'} from your team?`)) { close(); await setStatus(e.id, 'removed'); } };
+        $('#pAdd', w).onclick = () => { close(); editEntry(e, null); };
+        $$('[data-ed]', w).forEach((b) => (b.onclick = () => { close(); editEntry(e, T.entries.find((t) => t.id === b.dataset.ed)); }));
+      }, 'wide');
+    }
+
+    function editEntry(e, t) {
+      const jobs = (S.jobs || []).filter((j) => j.company_id === T.co);
+      const startDef = t ? local(t.clock_in) : (() => { const d = new Date(); d.setHours(7, 0, 0, 0); return local(d.toISOString()); })();
+      modal(`<h2>${t ? 'Edit punch' : 'Add time'}: ${esc(e.full_name || '')}</h2>
+        <div class="grid2" style="margin-top:12px">
+          <label>Punch in<input type="datetime-local" id="eIn" value="${startDef}"></label>
+          <label>Punch out<input type="datetime-local" id="eOut" value="${t && t.clock_out ? local(t.clock_out) : t ? '' : startDef.slice(0, 11) + '15:30'}"></label>
+          <label>Job<select id="eJob"><option value="">No job</option>${jobs.map((j) => `<option value="${j.id}" ${t && t.job_id === j.id ? 'selected' : ''}>${esc(j.name)}</option>`).join('')}</select></label>
+          <label>Reason for the change<input id="eWhy" placeholder="Forgot to punch out" value=""></label>
+        </div>
+        <p class="sub">Changes are marked on the timesheet${t ? ' with the reason you give' : ' as added by you'}.</p>
+        <div class="btn-row" style="justify-content:space-between;margin-top:12px">${t ? '<button class="btn danger" id="eDel">Delete punch</button>' : '<span></span>'}<div class="btn-row"><button class="btn" data-close>Cancel</button><button class="btn primary" id="eSave">Save</button></div></div>`, (w, close) => {
+        $('#eSave', w).onclick = async () => {
+          const ci = $('#eIn', w).value, co2 = $('#eOut', w).value;
+          if (!ci) { toast('Enter the punch-in time.', { type: 'error' }); return; }
+          const inIso = new Date(ci).toISOString(), outIso = co2 ? new Date(co2).toISOString() : null;
+          if (outIso && outIso <= inIso) { toast('Punch out must be after punch in.', { type: 'error' }); return; }
+          const why = $('#eWhy', w).value.trim();
+          const row = t ? { id: t.id, clock_in: inIso, clock_out: outIso, job_id: $('#eJob', w).value || null, edited_at: new Date().toISOString(), edit_note: why || 'Edited by owner' }
+            : { company_id: T.co, employee_id: e.id, user_id: e.user_id, clock_in: inIso, clock_out: outIso, job_id: $('#eJob', w).value || null, source: 'owner', edit_note: why || null };
+          try { await Store.upsert('time_entries', row); close(); toast('Saved'); load(); } catch (err) { toast(err.message, { type: 'error', ms: 8000 }); }
+        };
+        if ($('#eDel', w)) $('#eDel', w).onclick = async () => {
+          if (!confirm('Delete this punch? This can\'t be undone.')) return;
+          try { await Store.remove('time_entries', t.id); close(); toast('Punch deleted'); load(); } catch (err) { toast(err.message, { type: 'error' }); }
+        };
+      });
+    }
+
+    v.innerHTML = '<div class="head"><h1>Team</h1></div><p class="sub">Loading</p>';
+    load();
+    clearInterval(vTeam.timer);
+    vTeam.timer = setInterval(() => { if (location.hash.startsWith('#/team') && !document.hidden && !$('.modal-wrap')) load(); else if (!location.hash.startsWith('#/team')) clearInterval(vTeam.timer); }, 60000);
   }
 
   // ---------------- Admin (only for admins) ----------------

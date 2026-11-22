@@ -17,6 +17,7 @@
       d.companies.forEach((c) => { if (c.contract_after_accept === undefined) c.contract_after_accept = true; });
       if (!d.accounts) d.accounts = demoAccounts();
       if (!d.account_payments) d.account_payments = [];
+      if (!d.employees) Object.assign(d, demoTeam(d));
       return d;
     },
     save(d) {
@@ -151,8 +152,45 @@
     },
     async adminPayments(userId) { return this.db().account_payments.filter((p) => p.user_id === userId).sort((a, b) => (a.paid_on < b.paid_on ? 1 : -1)); },
     async adminAddPayment(p) { const d = this.db(); const row = { ...p, id: uid(), created_at: new Date().toISOString() }; d.account_payments.push(row); this.save(d); return row; },
-    async adminRemovePayment(id) { const d = this.db(); d.account_payments = d.account_payments.filter((p) => p.id !== id); this.save(d); }
+    async adminRemovePayment(id) { const d = this.db(); d.account_payments = d.account_payments.filter((p) => p.id !== id); this.save(d); },
+    // Team time clock
+    async timeEntries(fromIso, toIso) { return clone(this.db().time_entries.filter((t) => t.clock_in >= fromIso && t.clock_in < toIso)); },
+    async openEntries() { return clone(this.db().time_entries.filter((t) => !t.clock_out)); },
+    async regenerateJoinCode(companyId) {
+      const d = this.db(); const c = d.companies.find((x) => x.id === companyId);
+      const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let k = ''; for (let i = 0; i < 8; i++) k += a[Math.floor(Math.random() * a.length)];
+      c.join_code = k.slice(0, 4) + '-' + k.slice(4); this.save(d); return c.join_code;
+    },
+    async setRate(employeeId, rate) {
+      const d = this.db(); const i = d.employee_pay.findIndex((x) => x.employee_id === employeeId);
+      const row = { employee_id: employeeId, hourly_rate: rate, created_at: new Date().toISOString() };
+      if (i >= 0) d.employee_pay[i] = row; else d.employee_pay.push(row); this.save(d); return row;
+    }
   };
+
+  function demoTeam(d) {
+    const co = d.companies[0];
+    if (!co) return { employees: [], employee_pay: [], time_entries: [] };
+    if (!co.join_code) co.join_code = 'NRTH-7K4Q';
+    const job = (d.jobs || [])[0];
+    const emp = (id, full_name, phone, status, days) => ({ id, owner: 'demo', company_id: co.id, user_id: 'u-' + id, full_name, phone, email: full_name.split(' ')[0].toLowerCase() + '@example.com', status, approved_at: status === 'active' ? new Date(Date.now() - days * 86400000).toISOString() : null, created_at: new Date(Date.now() - days * 86400000).toISOString() });
+    const employees = [emp('e1', 'Marco Silva', '(508) 555-0141', 'active', 90), emp('e2', 'Jake Turner', '(508) 555-0188', 'active', 60), emp('e3', 'Ana Ramos', '(401) 555-0122', 'active', 20), emp('e4', 'Kevin Doyle', '(508) 555-0175', 'pending', 0)];
+    const at = (dayOffset, h, m) => { const x = new Date(); x.setHours(h, m, 0, 0); x.setDate(x.getDate() + dayOffset); return x.toISOString(); };
+    const time_entries = [];
+    const loc = { in_lat: 41.7015, in_lng: -71.1550, in_acc: 12, out_lat: 41.7016, out_lng: -71.1551, out_acc: 15 };
+    for (let back = 13; back >= 1; back--) {
+      const wd = new Date(); wd.setDate(wd.getDate() - back);
+      if (wd.getDay() === 0) continue;
+      [['e1', 7, 0, 15, 30], ['e2', 7, 15, 16, 0], ['e3', 8, 0, 14, 45]].forEach(([e, h1, m1, h2, m2], k) => {
+        if (wd.getDay() === 6 && e !== 'e1') return;
+        const x = (back * 7 + k * 3) % 11 - 5;
+        time_entries.push({ id: `t-${e}-${back}`, owner: 'demo', company_id: co.id, employee_id: e, user_id: 'u-' + e, job_id: job ? job.id : null, clock_in: at(-back, h1, m1 + x), clock_out: at(-back, h2 + (e === 'e1' && back % 3 === 0 ? 1 : 0), m2 + x), ...loc, source: 'employee', created_at: at(-back, h1, m1) });
+      });
+    }
+    time_entries.push({ id: 't-now-e1', owner: 'demo', company_id: co.id, employee_id: 'e1', user_id: 'u-e1', job_id: job ? job.id : null, clock_in: at(0, 7, 2), clock_out: null, in_lat: 41.7015, in_lng: -71.1550, in_acc: 9, source: 'employee', created_at: at(0, 7, 2) });
+    time_entries.push({ id: 't-now-e2', owner: 'demo', company_id: co.id, employee_id: 'e2', user_id: 'u-e2', job_id: null, clock_in: at(0, 7, 31), clock_out: null, in_lat: 41.70, in_lng: -71.15, in_acc: 30, source: 'employee', created_at: at(0, 7, 31) });
+    return { employees, employee_pay: [{ employee_id: 'e1', hourly_rate: 32, created_at: at(-90, 8, 0) }, { employee_id: 'e2', hourly_rate: 26, created_at: at(-60, 8, 0) }], time_entries };
+  }
 
   function demoAccounts() {
     const day = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
@@ -236,6 +274,26 @@
     async adminRemovePayment(id) {
       const { error } = await this.sb.from('account_payments').delete().eq('id', id);
       if (error) throw new Error(error.message);
+    },
+    async timeEntries(fromIso, toIso) {
+      const { data, error } = await this.sb.from('time_entries').select('*').gte('clock_in', fromIso).lt('clock_in', toIso).order('clock_in');
+      if (error) throw error;
+      return data || [];
+    },
+    async openEntries() {
+      const { data, error } = await this.sb.from('time_entries').select('*').is('clock_out', null);
+      if (error) throw error;
+      return data || [];
+    },
+    async regenerateJoinCode(companyId) {
+      const { data, error } = await this.sb.rpc('regenerate_join_code', { p_company: companyId });
+      if (error) throw error;
+      return data;
+    },
+    async setRate(employeeId, rate) {
+      const { data, error } = await this.sb.from('employee_pay').upsert({ employee_id: employeeId, hourly_rate: rate }).select().single();
+      if (error) throw locked(error);
+      return data;
     },
     async list(t) {
       const { data, error } = await this.sb.from(t).select('*').order('created_at', { ascending: true });
