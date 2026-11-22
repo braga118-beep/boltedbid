@@ -8,7 +8,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="BB Time Clock">
   <title>BoltedBid Time Clock</title>
-  <link rel="manifest" href="team.webmanifest">
+  <link rel="manifest" href="team.webmanifest" id="mf">
+  <script>
+    // iPhone/iPad: install from the invite link so the app opens with the company code filled in.
+    (function () {
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (ios && /[?&]code=/.test(location.search)) document.getElementById('mf').href = 'team-ios.webmanifest';
+      window.__bip = null;
+      window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__bip = e; document.dispatchEvent(new Event('bip')); });
+    })();
+  </script>
   <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -74,6 +83,19 @@
     .shifts .h { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .note { background: var(--amber-tint); color: var(--amber); border-radius: 14px; padding: 14px 16px; font-size: 15px; }
     .center { text-align: center; }
+    .install { text-align: center; }
+    .install .icon { width: 84px; height: 84px; border-radius: 20px; margin: 4px auto 14px; display: block; box-shadow: 0 10px 24px rgba(16,47,42,.25); }
+    .install h1 { font-size: 24px; }
+    .install .lead { color: var(--ink-2); margin: 8px 0 18px; }
+    .steps { list-style: none; counter-reset: s; margin: 0 0 18px; padding: 0; display: grid; gap: 10px; text-align: left; }
+    .steps li > span { flex: 1; min-width: 0; }
+    .steps li { counter-increment: s; display: flex; gap: 12px; align-items: center; background: var(--soft); border-radius: 14px; padding: 12px 14px; font-weight: 500; }
+    .steps li::before { content: counter(s); flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--spruce); color: #fff; font-weight: 700; font-size: 14px; }
+    .steps svg { width: 22px; height: 22px; vertical-align: -5px; color: #0A84FF; }
+    .codechip { display: inline-block; font-weight: 700; letter-spacing: .08em; background: #fff; border: 1px dashed var(--spruce-2); color: var(--spruce); border-radius: 10px; padding: 4px 10px; }
+    .arrow { position: fixed; left: 50%; bottom: calc(8px + env(safe-area-inset-bottom)); transform: translateX(-50%); color: var(--spruce); animation: bob 1.2s ease-in-out infinite; }
+    .arrow.top { bottom: auto; top: calc(8px + env(safe-area-inset-top)); right: 14px; left: auto; transform: none; }
+    @keyframes bob { 50% { translate: 0 6px; } }
     .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.25); z-index: 10; max-width: calc(100% - 32px); }
   </style>
 </head>
@@ -87,7 +109,7 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="config.js?v=20261122"></script>
+  <script src="config.js?v=20261122b"></script>
   <script>
   (function () {
     const $ = (s, el = document) => el.querySelector(s);
@@ -251,8 +273,64 @@
       };
     }
 
+    // ---------- Install the app (iPhone, iPad, Android) ----------
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(ua);
+    const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const inAppBrowser = /FBAN|FBAV|Instagram|Line\/|Snapchat|LinkedInApp|GSA\/|; wv\)/i.test(ua);
+    const iosSafari = isIOS && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+    const skipKey = 'bb-skip-install';
+    const skipped = () => { try { return sessionStorage.getItem(skipKey) === '1'; } catch (e) { return false; } };
+    const share = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+    const plusBox = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+
+    function installView() {
+      $('#out').hidden = true;
+      const code = new URLSearchParams(location.search).get('code') || '';
+      const chip = code ? `<p class="sub" style="margin-bottom:16px">Your company code is <span class="codechip">${esc(code.toUpperCase())}</span>${isIOS ? '. It will be filled in for you.' : ''}</p>` : '';
+      let body = '';
+      if (inAppBrowser) {
+        body = `<h1>Open this in ${isIOS ? 'Safari' : 'Chrome'}</h1>
+          <p class="lead">This link opened inside another app. To install the Time Clock, open it in your phone's browser.</p>
+          <ol class="steps"><li><span>Tap the <b>⋯</b> or <b>⋮</b> menu at the top or bottom of this screen</span></li><li><span>Tap <b>Open in ${isIOS ? 'Safari' : 'Chrome'}</b> (or "Open in browser")</span></li></ol>
+          <button class="btn wide" id="cp">Copy this link instead</button>`;
+      } else if (isIOS && !iosSafari) {
+        body = `<h1>Add the Time Clock to your home screen</h1><p class="lead">Free, takes 10 seconds, no App Store needed.</p>
+          <ol class="steps"><li><span>Tap the Share button ${share} in the address bar</span></li><li><span>Scroll down and tap <b>Add to Home Screen</b> ${plusBox}</span></li><li><span>Tap <b>Add</b>, then open <b>Time Clock</b> from your home screen</span></li></ol>
+          <p class="sub">Don't see it? Open this page in <b>Safari</b> and try again.</p>`;
+      } else if (isIOS) {
+        body = `<h1>Add the Time Clock to your home screen</h1><p class="lead">Free, takes 10 seconds, no App Store needed.</p>
+          <ol class="steps"><li><span>Tap the Share button ${share} at the bottom of Safari</span></li><li><span>Scroll down and tap <b>Add to Home Screen</b> ${plusBox}</span></li><li><span>Tap <b>Add</b>, then open <b>Time Clock</b> from your home screen and sign up there</span></li></ol>`;
+      } else {
+        body = `<h1>Install the Time Clock app</h1><p class="lead">Free, takes 10 seconds, no Play Store needed.</p>
+          <button class="btn primary wide" id="inst" ${window.__bip ? '' : 'hidden'}>Install the app</button>
+          <ol class="steps" id="manual" ${window.__bip ? 'hidden' : ''}><li><span>Tap the <b>⋮</b> menu at the top right of Chrome</span></li><li><span>Tap <b>Install app</b> or <b>Add to Home screen</b></span></li><li><span>Open <b>Time Clock</b> from your home screen and sign up there</span></li></ol>`;
+      }
+      main.innerHTML = `<div class="card install"><img class="icon" src="icons/icon-192.png" alt="Time Clock app icon">${body}${chip}
+        <p><button class="link" id="skip">Continue in the browser instead</button></p></div>
+        ${isIOS && iosSafari && !inAppBrowser ? `<div class="arrow" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg></div>` : ''}`;
+      $('#skip').onclick = () => { try { sessionStorage.setItem(skipKey, '1'); } catch (e) { /* ignore */ } start(); };
+      if ($('#cp')) $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(location.href); toast('Link copied. Paste it in ' + (isIOS ? 'Safari' : 'Chrome') + '.'); } catch (e) { prompt('Copy this link:', location.href); } };
+      const showBtn = () => { if ($('#inst')) { $('#inst').hidden = false; $('#manual').hidden = true; } };
+      document.addEventListener('bip', showBtn, { once: true });
+      if ($('#inst')) $('#inst').onclick = async () => {
+        const e = window.__bip; if (!e) return;
+        e.prompt();
+        const r = await e.userChoice;
+        window.__bip = null;
+        if (r.outcome === 'accepted') main.innerHTML = '<div class="card install"><img class="icon" src="icons/icon-192.png" alt=""><h1>Installed</h1><p class="lead">Open <b>Time Clock</b> from your home screen to sign up and punch in.</p><p><button class="link" id="skip2">Or continue here</button></p></div>';
+        if ($('#skip2')) $('#skip2').onclick = () => { try { sessionStorage.setItem(skipKey, '1'); } catch (er) { /* ignore */ } start(); };
+      };
+    }
+    window.addEventListener('appinstalled', () => toast('Time Clock installed. Open it from your home screen.'));
+
     async function start() {
       clearInterval(tick);
+      if ((isIOS || isAndroid) && !standalone() && !skipped()) {
+        const { data: s0 } = await sb.auth.getSession();
+        if (!s0.session) return installView();
+      }
       const { data } = await sb.auth.getSession();
       user = data.session && data.session.user;
       if (!user) return authView(new URLSearchParams(location.search).get('code') ? 'up' : 'in');
@@ -277,6 +355,7 @@
       clockView();
     }
 
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
     $('#out').onclick = async () => { await sb.auth.signOut(); location.replace('team.html'); };
     document.addEventListener('visibilitychange', () => { if (!document.hidden && user) start(); });
     const recovering = /type=recovery/.test(location.hash);

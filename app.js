@@ -3026,7 +3026,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
           <section class="tm-card"><h2>Invite employees</h2>
             <p class="sub">Send them this link, or have them go to the time clock and enter the code. You approve each person before they can punch in.</p>
             <div class="tm-code">${esc(co.join_code || 'Run upgrade-8.sql')}</div>
-            <div class="btn-row"><button class="btn primary" id="tInv">Copy invite</button><button class="btn" id="tNew">New code</button></div>
+            <div class="btn-row"><button class="btn primary" id="tInv">Copy invite</button><button class="btn" id="tQr">Show QR code</button><button class="btn" id="tNew">New code</button></div>
           </section>
           <section class="tm-card"><h2>On the clock now <span class="count">${T.open.length}</span></h2>
             ${T.open.length ? `<ul class="tm-now">${T.open.map((t) => { const e = S.employees.find((x) => x.id === t.employee_id) || {}; const long = dur(t) > 14 * 3600000; return `<li><div><b>${esc(e.full_name || 'Employee')}</b><div class="sub">Since ${esc(tme(t.clock_in))}${t.job_id ? ' · ' + esc(jobName(t.job_id)) : ''} · ${map(t.in_lat, t.in_lng)}</div>${long ? '<div class="warn">Still punched in after 14 hours. Forgot to punch out?</div>' : ''}</div><span class="tm-dur">${hm(dur(t))}</span></li>`; }).join('')}</ul>` : '<p class="sub">Nobody is punched in.</p>'}
@@ -3048,6 +3048,16 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
       $('#tInv').onclick = async () => {
         const text = `You're invited to ${co.name}'s time clock on BoltedBid. Open this link on your phone, create your login, and add it to your home screen:\n${inviteLink()}\nCompany code: ${co.join_code}`;
         try { await navigator.clipboard.writeText(text); toast('Invite copied. Paste it in a text or email to your employee.'); } catch (e) { prompt('Copy this invite:', text); }
+      };
+      $('#tQr').onclick = async () => {
+        try {
+          if (!window.qrcode) await new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; el.onload = res; el.onerror = () => rej(new Error('The QR code tool did not load. Check your connection.')); document.head.appendChild(el); });
+          const q = window.qrcode(0, 'M'); q.addData(inviteLink()); q.make();
+          modal(`<div class="qr-box"><h2>Scan to join ${esc(co.name)}</h2><p class="sub">Have your employee point their phone camera at this code. It opens the Time Clock and walks them through installing it.</p>
+            <div class="qr-img">${q.createSvgTag({ cellSize: 8, margin: 2, scalable: true })}</div>
+            <p class="tm-code" style="text-align:center;margin:6px 0">${esc(co.join_code)}</p><p class="sub" style="text-align:center;word-break:break-all">${esc(inviteLink())}</p>
+            <div class="btn-row" style="justify-content:center"><button class="btn" data-close>Done</button></div></div>`);
+        } catch (e) { toast(e.message, { type: 'error' }); }
       };
       $('#tNew').onclick = async () => {
         if (!confirm('Make a new code? The current code stops working. Employees who already joined are not affected.')) return;
