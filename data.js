@@ -257,9 +257,16 @@
       return data || [];
     },
     async adminUpdate(userId, patch) {
-      const { data, error } = await this.sb.from('accounts').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', userId).select().single();
+      // Private notes live in their own admin-only table, so the subscriber can never read them.
+      const { notes, ...rest } = patch;
+      let noteTable = true;
+      if ('notes' in patch) {
+        const n = await this.sb.from('account_notes').upsert({ user_id: userId, notes, updated_at: new Date().toISOString() });
+        if (n.error) { if (/account_notes/.test(n.error.message)) { noteTable = false; rest.notes = notes; } else throw new Error(n.error.message); }
+      }
+      const { data, error } = await this.sb.from('accounts').update({ ...rest, updated_at: new Date().toISOString() }).eq('user_id', userId).select().single();
       if (error) throw new Error(error.message);
-      return data;
+      return noteTable && 'notes' in patch ? { ...data, notes } : data;
     },
     async adminPayments(userId) {
       const { data, error } = await this.sb.from('account_payments').select('*').eq('user_id', userId).order('paid_on', { ascending: false });

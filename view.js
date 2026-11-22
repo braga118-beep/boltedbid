@@ -1,0 +1,242 @@
+  (async function () {
+    const D = window.Doc;
+    const params = new URLSearchParams(location.search);
+    const tok = params.get('t');
+    const preview = params.get('preview') === '1';
+    const paperEl = document.getElementById('paper');
+    const box = document.getElementById('accept');
+    const contractEl = document.getElementById('contract');
+    const fail = (title, msg) => { paperEl.innerHTML = `<div class="pub-msg"><h1>${title}</h1><p>${msg}</p></div>`; };
+    document.getElementById('pvBanner').hidden = !preview;
+
+    if (!tok) return fail('Link incomplete', 'This link is missing part of its address. Ask the sender to send it again.');
+    let data;
+    try {
+      await window.Store.init();
+      data = await window.Store.getPublic(tok, !preview);
+    } catch (e) {
+      return fail('Document unavailable', 'This document could not be loaded. Check your connection and try again.');
+    }
+    if (!data || !data.document) return fail('Link no longer active', 'This document was removed or replaced. Ask the sender for an updated copy.');
+
+    let doc = data.document;
+    const company = data.company || {};
+    const photos = data.photos || [];
+    const typeName = D.typeName(doc);
+    const isCO = doc.type === 'change_order';
+    const noun = isCO ? 'change order' : 'estimate';
+    const optLines = () => (doc.items || []).map((it, i) => ({ it, i })).filter((x) => x.it.option);
+    const C = window.Contract;
+    // Contract signing is on when the company turned it on; estimates get the full contract, change orders a signed approval.
+    const needsContract = () => company.contract_enabled && C && D.isQuote(doc);
+    const fullContract = () => needsContract() && doc.type === 'estimate';
+    // Accepted before contracts were turned on, and the contractor has sent the contract to sign.
+    const signLater = () => fullContract() && ['accepted', 'converted'].includes(doc.status) && !doc.signature && !!doc.contract_requested_at;
+    // Estimate first: the customer accepts, then the contract appears to sign (needs upgrade-5.sql).
+    // Without that upgrade, the older one-step "accept and sign" is used.
+    const afterAccept = () => fullContract() && company.contract_after_accept === true;
+    const own = () => fullContract() && C.isUpload(doc.signature && doc.signature.company ? doc.signature.company : company);
+    const builtin = () => fullContract() && !own();
+    const missing = () => (fullContract() ? C.issues(doc, company) : []);
+    const canChoose = () => D.isQuote(doc) && doc.status === 'sent' && !(doc.due_date && doc.due_date < D.today());
+
+    function firstPayment() {
+      const s = D.scheduleAmounts(doc);
+      return s.length && s[0].amount > 0 ? ` The first payment, ${D.esc(s[0].name || 'deposit')}, is ${D.money(s[0].amount)}.` : '';
+    }
+
+    // Optional add-ons (tick boxes) and good / better / best choices (one per group).
+    function optionsHTML() {
+      const lines = optLines();
+      if (!lines.length || !canChoose()) return '';
+      const amount = (it) => D.money((Number(it.qty) || 0) * (Number(it.price) || 0));
+      const title = (it) => D.esc(String(it.description || '').split('\n')[0] || it.kind || 'Option');
+      const rest = (it) => D.esc(String(it.description || '').split('\n').slice(1).join(' '));
+      const groups = [...new Set(lines.filter((x) => x.it.option === 'choice').map((x) => x.it.group || 'Choice'))];
+      const addons = lines.filter((x) => x.it.option === 'addon');
+      return `
+        <div class="opts">
+          <h2>Choose your options</h2>
+          <p class="sub">Your total updates as you choose.</p>
+          ${groups.map((g) => `
+            <fieldset class="opt-group"><legend>${D.esc(g)}</legend>
+              ${lines.filter((x) => x.it.option === 'choice' && (x.it.group || 'Choice') === g).map(({ it, i }) => `
+                <label class="opt-row"><input type="radio" name="g-${D.esc(g)}" value="${i}" ${it.selected ? 'checked' : ''}>
+                  <span class="opt-text"><b>${title(it)}</b>${rest(it) ? `<span class="sub">${rest(it)}</span>` : ''}</span><span class="num">${amount(it)}</span></label>`).join('')}
+            </fieldset>`).join('')}
+          ${addons.length ? `<fieldset class="opt-group"><legend>Add-ons</legend>
+            ${addons.map(({ it, i }) => `
+              <label class="opt-row"><input type="checkbox" value="${i}" ${it.selected ? 'checked' : ''}>
+                <span class="opt-text"><b>${title(it)}</b>${rest(it) ? `<span class="sub">${rest(it)}</span>` : ''}</span><span class="num">+ ${amount(it)}</span></label>`).join('')}
+          </fieldset>` : ''}
+          <div class="opt-total"><span>Your total</span><b>${D.money(D.totals(doc).total)}</b></div>
+        </div>`;
+    }
+
+    function signedHTML() {
+      const sig = doc.signature;
+      return `<p class="ok">You ${isCO ? 'approved' : 'accepted'} this ${noun}${doc.accepted_by ? ' as ' + D.esc(doc.accepted_by) : ''}${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. ${D.esc(company.name)} has been notified.</p>
+        ${sig && own() ? `<p class="sub">Your signed contract is shown above.</p>
+        <div class="btn-row"><button class="btn primary" id="kDl">Download signed contract (PDF)</button></div>` : ''}
+        ${sig && builtin() ? `<p class="sub">Your signed contract is shown above. You have until midnight of ${D.esc(C.addBusinessDays(new Date(sig.signed_at), 3).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))} to cancel, as explained in Attachment A.</p>
+        <div class="btn-row"><button class="btn primary" id="kDl">Download signed contract (PDF)</button></div>` : ''}`;
+    }
+
+    function signFormHTML() {
+      const arb = builtin() && C.contractState(doc, company).state === 'MA' && company.arbitration_enabled !== false;
+      return `
+        <h2>${isCO ? 'Approve and sign this change order' : signLater() ? 'Sign your contract' : 'Accept and sign the contract'}</h2>
+        <p class="sub">${signLater() ? `You accepted this estimate${doc.accepted_at ? ' on ' + D.fmtDate(doc.accepted_at) : ''}. Please read the contract above and sign it below.` : isCO ? `By signing, you approve change order ${D.esc(doc.number)} and its price. It becomes part of your contract with ${D.esc(company.name)}.` : 'Please read the contract above the estimate. By signing, you accept this estimate' + (optLines().length ? ' with the options you chose' : '') + ' and agree to the contract.' + firstPayment()}</p>
+        <form id="acf" class="kform" autocomplete="on">
+          ${own() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read the whole contract above and the estimate, and I agree to them.</label>' : ''}
+          ${builtin() ? '<label class="check k-agree"><input type="checkbox" name="agree" required> I have read and agree to this contract, the attached estimate and the notices, including my right to cancel within 3 business days.</label>' : ''}
+          <label>Your full name<input name="n" required autocomplete="name" placeholder="Your full name"></label>
+          <div class="k-padbox"><div class="k-padhead"><span>Sign here with your finger or mouse</span><button type="button" class="link small" data-clear="main">Clear</button></div><canvas class="k-pad" id="padMain"></canvas></div>
+          ${arb ? `<details class="k-arb"><summary>Optional: also sign the contractor arbitration agreement (Attachment E)</summary>
+            <p class="sub">You don't have to sign this to accept. It lets ${D.esc(company.name)} take a dispute to state-approved arbitration instead of court.</p>
+            <label class="check"><input type="checkbox" name="arb"> I agree to the contractor arbitration agreement in Attachment E.</label>
+            <div class="k-padbox"><div class="k-padhead"><span>Separate signature for arbitration</span><button type="button" class="link small" data-clear="arb">Clear</button></div><canvas class="k-pad" id="padArb"></canvas></div></details>` : ''}
+          ${builtin() ? '<label class="check"><input type="checkbox" name="nophotos"> No photos of my project for portfolio use (section 15)</label>' : ''}
+          <button class="btn primary k-go" type="submit" disabled>${isCO ? 'Approve and sign' : signLater() ? 'Sign contract' : 'Accept and sign'}</button>
+          <p class="sub k-note">Your signature, name, the date and time, and the device you use are recorded as proof of signing.</p>
+        </form>`;
+    }
+
+    function drawAccept() {
+      if (!D.isQuote(doc)) { box.hidden = true; return; }
+      if (signLater()) {
+        box.hidden = false;
+        if (missing().length) { box.innerHTML = `<h2>Almost ready</h2><p>${D.esc(company.name)} still needs to add some details to your contract before you can sign it online. Please contact them${company.phone ? ' at ' + D.esc(company.phone) : ''}.</p>`; return; }
+        box.innerHTML = signFormHTML();
+        bindSignForm();
+        return;
+      }
+      if (doc.status === 'accepted' || doc.status === 'converted') {
+        box.hidden = false;
+        box.innerHTML = signedHTML();
+        const k = document.getElementById('kDl');
+        if (k) k.onclick = async () => {
+          k.disabled = true; k.textContent = 'Preparing PDF';
+          try { (await C.toPdf(doc, company)).save(`Contract ${doc.number} ${doc.customer_name || ''}.pdf`.trim()); } catch (e) { alert(e.message); }
+          k.disabled = false; k.textContent = 'Download signed contract (PDF)';
+        };
+        return;
+      }
+      if (doc.status !== 'sent' && !(preview && doc.status === 'draft')) { box.hidden = true; return; }
+      box.hidden = false;
+      if (doc.due_date && doc.due_date < D.today()) {
+        box.innerHTML = `<p>This ${noun} expired on ${D.fmtDate(doc.due_date)}. Contact ${D.esc(company.name)} for an updated ${noun}.</p>`;
+        return;
+      }
+      if (missing().length) {
+        box.innerHTML = `${optionsHTML()}<h2>Almost ready</h2><p>${D.esc(company.name)} still needs to add some details to your contract before you can sign it online. Please contact them${company.phone ? ' at ' + D.esc(company.phone) : ''}.</p>`;
+        bindOptions();
+        return;
+      }
+      if (!needsContract() || afterAccept()) {
+        box.innerHTML = `
+          ${optionsHTML()}
+          <h2>${isCO ? 'Approve this change order' : 'Ready to go ahead?'}</h2>
+          <p class="sub">Type your full name to ${isCO ? 'approve this change order' : 'accept this estimate'}${optLines().length ? ' with the options you chose' : ''}. ${D.esc(company.name)} is notified right away.${afterAccept() ? ' Next, you\'ll review and sign your contract right here on this page.' : ''}${isCO ? '' : firstPayment()}</p>
+          <form id="acf" class="acf"><input name="n" required placeholder="Your full name" autocomplete="name" aria-label="Your full name"><button class="btn primary" type="submit">${isCO ? 'Approve change order' : 'Accept estimate'}</button></form>`;
+        bindOptions();
+        document.getElementById('acf').onsubmit = (e) => { e.preventDefault(); submit(e.target, null); };
+        return;
+      }
+      box.innerHTML = optionsHTML() + signFormHTML();
+      bindOptions();
+      bindSignForm();
+    }
+
+    function bindSignForm() {
+      const form = document.getElementById('acf');
+      const go = form.querySelector('.k-go');
+      const main = C.pad(document.getElementById('padMain'), () => check());
+      const arbCanvas = document.getElementById('padArb');
+      const arb = arbCanvas ? C.pad(arbCanvas) : null;
+      const check = () => { go.disabled = main.isEmpty() || !form.n.value.trim() || (form.agree && !form.agree.checked); };
+      form.addEventListener('input', check); form.addEventListener('change', check);
+      form.querySelectorAll('[data-clear]').forEach((btn) => (btn.onclick = () => { (btn.dataset.clear === 'arb' ? arb : main).clear(); check(); }));
+      if (arbCanvas) form.querySelector('details').addEventListener('toggle', () => { /* canvas sizes itself when shown */ setTimeout(() => window.dispatchEvent(new Event('resize')), 30); });
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        if (main.isEmpty()) { alert('Please sign in the box.'); return; }
+        const wantArb = form.arb && form.arb.checked;
+        if (wantArb && arb.isEmpty()) { alert('Please add your separate signature for the arbitration agreement, or untick it.'); return; }
+        submit(form, {
+          image: main.image(), agreed: true, ua: navigator.userAgent.slice(0, 300),
+          no_photos: !!(form.nophotos && form.nophotos.checked),
+          arbitration_image: wantArb ? arb.image() : null, arbitration_name: wantArb ? form.n.value.trim() : null,
+          state: builtin() ? C.contractState(doc, company).state : null
+        });
+      };
+    }
+
+    function bindOptions() {
+      box.querySelectorAll('.opts input').forEach((inp) => {
+        inp.onchange = () => {
+          const i = Number(inp.value);
+          if (inp.type === 'radio') {
+            const g = doc.items[i].group || 'Choice';
+            doc.items = doc.items.map((it, k) => (it.option === 'choice' && (it.group || 'Choice') === g ? { ...it, selected: k === i } : it));
+          } else {
+            doc.items = doc.items.map((it, k) => (k === i ? { ...it, selected: inp.checked } : it));
+          }
+          const y = window.scrollY;
+          draw();
+          window.scrollTo(0, y);
+        };
+      });
+    }
+
+    async function submit(form, signature) {
+      const name = form.n.value.trim();
+      if (!name) return;
+      const later = signLater();
+      if (preview) { alert(later ? 'This is a preview, so the contract was not signed.' : `This is a preview, so the ${noun} was not ${isCO ? 'approved' : 'accepted'}.`); return; }
+      const b = form.querySelector('button[type=submit]');
+      b.disabled = true; b.textContent = 'Saving';
+      try {
+        const selected = optLines().length ? doc.items.map((it, i) => (it.option && it.selected ? i : -1)).filter((i) => i >= 0) : undefined;
+        const ok = later ? await window.Store.signContract(tok, name, signature) : await window.Store.accept(tok, name, selected, signature);
+        if (ok === false) throw new Error('not accepted');
+        try { const fresh = await window.Store.getPublic(tok, false); if (fresh && fresh.document) doc = fresh.document; } catch (e) { /* keep local */ }
+        if (later && !doc.signature) doc = { ...doc, signature: { ...signature, name, signed_at: new Date().toISOString(), company, document: { ...doc } } };
+        if (!later && doc.status !== 'accepted') {
+          doc = { ...doc, status: 'accepted', accepted_by: name, accepted_at: new Date().toISOString() };
+          if (!signature && afterAccept()) doc.contract_requested_at = doc.accepted_at;
+          if (signature) doc.signature = { ...signature, name, signed_at: doc.accepted_at, company, document: { ...doc } };
+        }
+        draw();
+        // Just accepted: take them to the contract they now need to sign.
+        if (!later && signLater() && contractEl.firstElementChild) contractEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.scrollTo(0, 0);
+      } catch (err) {
+        b.disabled = false; b.textContent = isCO ? 'Approve and sign' : later ? 'Sign contract' : 'Accept and sign';
+        alert(err && /upgrade-[34]/.test(err.message) ? err.message : later ? `The contract could not be signed online. Please contact ${company.name} directly.` : `The ${noun} could not be ${isCO ? 'approved' : 'accepted'} online. Please contact ${company.name} directly.`);
+      }
+    }
+
+    function draw() {
+      document.title = `${typeName} ${doc.number} from ${company.name || ''}`;
+      document.getElementById('pubCo').textContent = company.name || '';
+      const beforeAccept = doc.status === 'sent' || (preview && doc.status === 'draft');
+      const showContract = fullContract() && !missing().length && (doc.signature || signLater() || (beforeAccept && !afterAccept()));
+      // The estimate always comes first; the contract follows it, then the accept or sign box.
+      paperEl.innerHTML = D.renderPaper(doc, company, photos);
+      contractEl.innerHTML = showContract ? C.render(C.ctxFor(doc, company)) : '';
+      if (showContract) C.mount(contractEl);
+      drawAccept();
+    }
+    draw();
+
+    const dl = document.getElementById('dl');
+    dl.hidden = false;
+    dl.onclick = async () => {
+      dl.disabled = true; dl.textContent = 'Preparing PDF';
+      try { (await D.toPdf(doc, company, photos)).save(`${typeName} ${doc.number}.pdf`); }
+      catch (e) { alert(e.message); }
+      dl.disabled = false; dl.textContent = 'Download PDF';
+    };
+  })();
+  

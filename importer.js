@@ -3,8 +3,8 @@
 // on the page, so it copes with long task lists, wrapped lines and several pages.
 (function () {
   'use strict';
-  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-  const WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const PDFJS = 'vendor/pdf-3.11.174.min.js';
+  const WORKER = 'vendor/pdf-3.11.174.worker.min.js';
 
   function loadPdfJs() {
     if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
@@ -20,7 +20,7 @@
   // ---- Text with positions, grouped into lines and cells ----
   async function readLines(file) {
     const lib = await loadPdfJs();
-    const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+    const pdf = await lib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     const lines = [];
     let yOff = 0;
     for (let p = 1; p <= pdf.numPages; p++) {

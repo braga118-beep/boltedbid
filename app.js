@@ -42,6 +42,8 @@
   const desc = (a, b) => String(b.created_at).localeCompare(String(a.created_at));
   const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
   const fileName = (d) => `${d.number || typeName(d)} ${d.customer_name || ''}`.trim().replace(/[\\/:*?"<>|]+/g, '');
+  // Spreadsheet cell: quoted, and text that starts like a formula (= + - @) is kept as plain text.
+  const csvCell = (x) => { let v = String(x == null ? '' : x); if (/^[=+\-@\t\r]/.test(v) && !/^-?\d+(\.\d+)?$/.test(v)) v = "'" + v; return `"${v.replace(/"/g, '""')}"`; };
   function upsertLocal(arr, obj) { const i = arr.findIndex((x) => x.id === obj.id); if (i >= 0) arr[i] = obj; else arr.push(obj); return obj; }
   const counterKey = (type) => (type === 'invoice' ? 'next_invoice_no' : type === 'change_order' ? 'next_change_order_no' : 'next_estimate_no');
   function predictNumber(co, type) {
@@ -1158,7 +1160,7 @@
           <div class="p-band"></div>
           <header class="p-head">
             <div class="p-from">
-              ${co.logo ? `<div class="p-logo" role="img" aria-label="" style="background-image:url('${co.logo}')"></div>` : ''}
+              ${D.safeImg(co.logo) ? `<div class="p-logo" role="img" aria-label="" style="background-image:url('${esc(D.safeImg(co.logo))}')"></div>` : ''}
               ${S.companies.length > 1
         ? `<select class="ghost p-co co-pick" data-f="company_id" aria-label="Company">${S.companies.map((c) => `<option value="${c.id}" ${c.id === d.company_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>`
         : `<div class="p-co">${esc(co.name || '')}</div>`}
@@ -2524,7 +2526,7 @@
     let value = c.contractor_signature || '';
     const draw = () => {
       box.innerHTML = value
-        ? `<div class="sig-saved"><img src="${value}" alt="Your signature"></div><div class="btn-row"><button type="button" class="btn" id="sigRedo">Draw again</button></div>`
+        ? `<div class="sig-saved"><img src="${esc(D.safeImg(value))}" alt="Your signature"></div><div class="btn-row"><button type="button" class="btn" id="sigRedo">Draw again</button></div>`
         : `<div class="k-padbox"><div class="k-padhead"><span>Sign here with your finger or mouse</span><button type="button" class="link small" id="sigClear">Clear</button></div><canvas class="k-pad" id="sigPad"></canvas></div><div class="btn-row"><button type="button" class="btn" id="sigUse">Use this signature</button></div>`;
       if (value) {
         $('#sigRedo').onclick = () => { value = ''; onChange(value); draw(); };
@@ -2606,7 +2608,7 @@
       <p class="lead">Each company has its own logo, contact details, numbering and defaults. You pick the company when you create an estimate or invoice.</p>
       <div class="co-list">${S.companies.map((c) => `
         <a class="co-row" href="#/company/${c.id}">
-          <span class="co-logo" style="--brand:${esc(c.color || '#1F4E46')}">${c.logo ? `<img src="${c.logo}" alt="">` : esc((c.name || '?')[0])}</span>
+          <span class="co-logo" style="--brand:${esc(c.color || '#1F4E46')}">${D.safeImg(c.logo) ? `<img src="${esc(D.safeImg(c.logo))}" alt="">` : esc((c.name || '?')[0])}</span>
           <span class="who"><b>${esc(c.name)}</b><span class="sub">${esc((c.address || '').split('\n').join(', '))}</span></span>
           <span class="sub">${plural(S.documents.filter((d) => d.company_id === c.id).length, 'document')}</span>
         </a>`).join('')}</div>`;
@@ -2814,7 +2816,7 @@
     $$('#coForm input[name=contract_mode]').forEach((r) => (r.onchange = kShow));
     kDraw(); kShow();
     const drawLogo = () => {
-      $('#logoBox').innerHTML = logo ? `<img src="${logo}" alt="Company logo">` : '<span class="sub">No logo</span>';
+      $('#logoBox').innerHTML = D.safeImg(logo) ? `<img src="${esc(D.safeImg(logo))}" alt="Company logo">` : '<span class="sub">No logo</span>';
       $('#logoRm').hidden = !logo;
     };
     drawLogo();
@@ -3043,7 +3045,8 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
           <p class="sub">Tap an employee to see each punch, fix times, add missing time or set their hourly rate. Overtime counts hours over 40 in the week, paid at 1.5×.</p>
           ${Object.keys(byJob).length ? `<h3 class="k-subhead">Hours by job this week</h3><ul class="tm-jobs">${Object.entries(byJob).sort((a, b) => b[1] - a[1]).map(([k, ms]) => `<li><span>${esc(k ? jobName(k) || 'Job' : 'No job picked')}</span><b>${hm(ms)}</b></li>`).join('')}</ul>` : ''}
         </section>
-        ${emps.some((e) => e.status === 'removed') ? `<p class="sub">Removed: ${emps.filter((e) => e.status === 'removed').map((e) => esc(e.full_name || e.email)).join(', ')}. Their past hours are kept.</p>` : ''}`;
+        ${emps.some((e) => e.status === 'removed') ? `<p class="sub">Removed: ${emps.filter((e) => e.status === 'removed').map((e) => `${esc(e.full_name || e.email)} <button class="link small" data-back="${e.id}">add back</button>`).join(', ')}. Their past hours are kept.</p>` : ''}`;
+      $$('[data-back]').forEach((b) => (b.onclick = () => setStatus(b.dataset.back, 'active')));
       if ($('#tCo')) $('#tCo').onchange = (e) => { T.co = e.target.value; load(); };
       $('#tInv').onclick = async () => {
         const text = `You're invited to ${co.name}'s time clock on BoltedBid. Open this link on your phone, create your login, and add it to your home screen:\n${inviteLink()}\nCompany code: ${co.join_code}`;
@@ -3051,7 +3054,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
       };
       $('#tQr').onclick = async () => {
         try {
-          if (!window.qrcode) await new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js'; el.onload = res; el.onerror = () => rej(new Error('The QR code tool did not load. Check your connection.')); document.head.appendChild(el); });
+          if (!window.qrcode) await new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'vendor/qrcode-generator-1.4.4.js'; el.onload = res; el.onerror = () => rej(new Error('The QR code tool did not load. Check your connection.')); document.head.appendChild(el); });
           const q = window.qrcode(0, 'M'); q.addData(inviteLink()); q.make();
           modal(`<div class="qr-box"><h2>Scan to join ${esc(co.name)}</h2><p class="sub">Have your employee point their phone camera at this code. It opens the Time Clock and walks them through installing it.</p>
             <div class="qr-img">${q.createSvgTag({ cellSize: 8, margin: 2, scalable: true })}</div>
@@ -3068,7 +3071,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
       $('#tPrev').onclick = () => { T.week.setDate(T.week.getDate() - 7); load(); };
       $('#tNext').onclick = () => { T.week.setDate(T.week.getDate() + 7); load(); };
       $('#tCsv').onclick = () => {
-        const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
+        const q = csvCell;
         const lines = [['Employee', 'Date', 'Punch in', 'Punch out', 'Hours', 'Job', 'Note', 'Added or edited by owner', 'In location', 'Out location'].map(q).join(',')];
         T.entries.slice().sort((a, b) => (a.clock_in < b.clock_in ? -1 : 1)).forEach((t) => {
           const e = S.employees.find((x) => x.id === t.employee_id) || {};
@@ -3207,7 +3210,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
     $('#adRe').onclick = load;
     $('#adCsv').onclick = () => {
       const cols = ['full_name', 'company_name', 'email', 'created_at', 'status', 'plan', 'trial_ends', 'paid_through', 'discount_percent', 'discount_note', 'estimates', 'invoices', 'total_paid', 'last_sign_in_at', 'notes'];
-      const q = (x) => `"${String(x == null ? '' : x).replace(/"/g, '""')}"`;
+      const q = csvCell;
       const csv = [cols.concat('access').join(','), ...rows.map((a) => cols.map((c) => q(a[c])).concat(q(acctState(a).label)).join(','))].join('\n');
       saveBlob(new Blob([csv], { type: 'text/csv' }), `BoltedBid accounts ${D.today()}.csv`);
     };

@@ -204,11 +204,11 @@
       `<p class="k-big">DO NOT SIGN THIS CONTRACT IF THERE ARE ANY BLANK SPACES.</p>`);
 
     // Signatures
-    const sigImg = (src) => (src ? `<img class="k-sig" src="${src}" alt="Signature">` : '<div class="k-sig-blank">Signs below</div>');
+    const sigImg = (src) => (D.safeImg(src) ? `<img class="k-sig" src="${esc(D.safeImg(src))}" alt="Signature">` : '<div class="k-sig-blank">Signs below</div>');
     b.push(`<div class="k-signs">
       <div><div class="k-lab">Owner</div>${sig ? sigImg(sig.image) : sigImg(null)}<div class="k-line">${esc(sig ? sig.name : doc.customer_name)}</div>
         <div class="k-meta">${sig ? `Signed electronically ${esc(dateTime(sig.signed_at))}` : 'Not signed yet'}</div></div>
-      <div><div class="k-lab">Contractor</div>${co.contractor_signature ? `<img class="k-sig" src="${co.contractor_signature}" alt="Contractor signature">` : sigImg(null)}<div class="k-line">${esc(co.signer_name || '')}, for ${esc(co.name)}</div>
+      <div><div class="k-lab">Contractor</div>${D.safeImg(co.contractor_signature) ? `<img class="k-sig" src="${esc(D.safeImg(co.contractor_signature))}" alt="Contractor signature">` : sigImg(null)}<div class="k-line">${esc(co.signer_name || '')}, for ${esc(co.name)}</div>
         <div class="k-meta">${sig ? `Signed electronically ${esc(dateTime(sig.signed_at))}` : 'Applied when Owner signs'}</div></div>
     </div>` + (sig ? `<p class="k-meta">Owner agreed to this contract, the attached estimate and the notices. Signing record: ${esc(sig.ua ? sig.ua.slice(0, 110) : 'device not recorded')}${sig.ip ? `, IP ${esc(sig.ip)}` : ''}.</p>` : ''));
 
@@ -239,7 +239,7 @@
         p('The contractor and the homeowner hereby mutually agree in advance that in the event the contractor has a dispute concerning this contract, the contractor may submit the dispute to a private arbitration firm which has been approved by the Secretary of the Executive Office of Consumer Affairs and Business Regulation and the consumer shall be required to submit to such arbitration as provided in Massachusetts General Laws, chapter 142A.') +
         (sig && sig.arbitration_image
           ? `<div class="k-signs"><div><div class="k-lab">Homeowner</div>${sigImg(sig.arbitration_image)}<div class="k-line">${esc(sig.arbitration_name || sig.name)}</div><div class="k-meta">Signed ${esc(dateTime(sig.signed_at))}</div></div>
-             <div><div class="k-lab">Contractor</div>${co.contractor_signature ? `<img class="k-sig" src="${co.contractor_signature}" alt="">` : ''}<div class="k-line">${esc(co.signer_name || '')}</div><div class="k-meta">Signed ${esc(dateTime(sig.signed_at))}</div></div></div>`
+             <div><div class="k-lab">Contractor</div>${D.safeImg(co.contractor_signature) ? `<img class="k-sig" src="${esc(D.safeImg(co.contractor_signature))}" alt="">` : ''}<div class="k-line">${esc(co.signer_name || '')}</div><div class="k-meta">Signed ${esc(dateTime(sig.signed_at))}</div></div></div>`
           : p(sig ? '<b>Not signed by the homeowner.</b> This optional agreement does not apply.' : '<i>Optional. The homeowner may sign this separately when accepting.</i>')) +
         p('NOTICE: The signatures of the parties above apply only to the agreement of the parties to alternative dispute resolution initiated by the contractor. The homeowner may initiate alternative dispute resolution even where this section is not separately signed by the parties.'));
     }
@@ -259,9 +259,9 @@
   }
 
   // ---------------- Uploaded contract (PDF) ----------------
-  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-  const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const PDFLIB = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+  const PDFJS = 'vendor/pdf-3.11.174.min.js';
+  const PDFJS_WORKER = 'vendor/pdf-3.11.174.worker.min.js';
+  const PDFLIB = 'vendor/pdf-lib-1.17.1.min.js';
   const loadScript = (src, ready) => (ready() ? Promise.resolve() : new Promise((res, rej) => {
     const el = document.createElement('script'); el.src = src; el.onload = () => res(); el.onerror = () => rej(new Error('A PDF tool did not load. Check your internet connection and try again.'));
     document.head.appendChild(el);
@@ -284,7 +284,7 @@
     const t = D.totals(doc);
     const addr = (co.address || '').split('\n').join(', ');
     const job = (doc.job_site || doc.customer_address || '').split('\n').join(', ');
-    const sigImg = (src) => (src ? `<img class="k-sig" src="${src}" alt="Signature">` : '<div class="k-sig-blank">Signs below</div>');
+    const sigImg = (src) => (D.safeImg(src) ? `<img class="k-sig" src="${esc(D.safeImg(src))}" alt="Signature">` : '<div class="k-sig-blank">Signs below</div>');
     const file = co.contract_file_name ? `"${esc(co.contract_file_name)}"` : 'the contract';
     return `<h2 class="k-sp-title">Signature page</h2>
       <p>This signature page is part of ${file}${co.contract_file_pages ? ` (${num(co.contract_file_pages)} ${co.contract_file_pages === 1 ? 'page' : 'pages'})` : ''}, which comes before it, and of the estimate attached after it. Together they are the agreement between:</p>
@@ -299,7 +299,7 @@
       <div class="k-signs">
         <div><div class="k-lab">Customer</div>${sig ? sigImg(sig.image) : sigImg(null)}<div class="k-line">${esc(sig ? sig.name : doc.customer_name || '')}</div>
           <div class="k-meta">${sig ? `Signed electronically ${esc(dateTime(sig.signed_at))}` : 'Not signed yet'}</div></div>
-        <div><div class="k-lab">Contractor</div>${co.contractor_signature ? `<img class="k-sig" src="${co.contractor_signature}" alt="Contractor signature">` : sigImg(null)}<div class="k-line">${esc(co.signer_name || '')}, for ${esc(co.name || '')}</div>
+        <div><div class="k-lab">Contractor</div>${D.safeImg(co.contractor_signature) ? `<img class="k-sig" src="${esc(D.safeImg(co.contractor_signature))}" alt="Contractor signature">` : sigImg(null)}<div class="k-line">${esc(co.signer_name || '')}, for ${esc(co.name || '')}</div>
           <div class="k-meta">${sig ? `Signed electronically ${esc(dateTime(sig.signed_at))}` : 'Applied when the customer signs'}</div></div>
       </div>
       ${sig ? `<p class="k-meta">Signing record: ${esc(sig.ua ? sig.ua.slice(0, 110) : 'device not recorded')}${sig.ip ? `, IP ${esc(sig.ip)}` : ''}.</p>` : ''}
@@ -326,7 +326,7 @@
       if (!src) { box.innerHTML = '<p class="sub">No contract file has been added yet.</p>'; continue; }
       try {
         const lib = await pdfjs();
-        const pdf = await lib.getDocument({ data: await fileBytes(src) }).promise;
+        const pdf = await lib.getDocument({ data: await fileBytes(src), isEvalSupported: false }).promise;
         box.innerHTML = '';
         const width = Math.min(1400, Math.max(600, Math.round((box.clientWidth || 760) * Math.min(2.5, window.devicePixelRatio || 1.5))));
         for (let n = 1; n <= pdf.numPages; n++) {
@@ -356,7 +356,7 @@
     const lib = await pdfjs();
     const bytes = new Uint8Array(await file.arrayBuffer());
     let pdf;
-    try { pdf = await lib.getDocument({ data: bytes.slice() }).promise; }
+    try { pdf = await lib.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise; }
     catch (e) { throw new Error(/password/i.test(e.message || '') ? 'This PDF is password protected. Save a copy without a password and upload that.' : 'This file could not be read as a PDF.'); }
     const first = await pdf.getPage(1);
     const vp = first.getViewport({ scale: 1 });

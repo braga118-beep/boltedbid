@@ -4,6 +4,8 @@
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const nl = (s) => esc(s).replace(/\n/g, '<br>');
+  // Only real images can be shown: data: images or https links. Anything else (including hidden code) is dropped.
+  const safeImg = (u) => { const s = String(u || ''); return /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(s) || /^https:\/\/[^\s"'()<>\\]+$/.test(s) || /^blob:https?:\/\/[^\s"'()<>\\]+$/.test(s) ? s : ''; };
   const money = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(n) || 0);
   const num = (n) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Number(n) || 0);
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -170,7 +172,7 @@
     const head = `
       <header class="p-head">
         <div class="p-from">
-          ${co.logo ? `<div class="p-logo" role="img" aria-label="${esc(co.name)}" style="background-image:url('${co.logo}')"></div>` : ''}
+          ${safeImg(co.logo) ? `<div class="p-logo" role="img" aria-label="${esc(co.name)}" style="background-image:url('${esc(safeImg(co.logo))}')"></div>` : ''}
           <div class="p-co">${esc(co.name || '')}</div>
           <div class="p-lines">${companyLines(co)}</div>
         </div>
@@ -454,5 +456,5 @@
     return out.toDataURL('image/jpeg', 0.9);
   }
 
-  window.Doc = { esc, nl, money, num, round2, today, addDays, fmtDate, totals, status, STATUS_LABEL, companyLines, renderPaper, buildPages, pageCanvas, toPdf, toJpeg, BASIS_LABEL, bases, scheduleAmounts, scheduleCheck, shareLabel, included, isQuote, typeName, TYPE_NAME };
+  window.Doc = { safeImg, esc, nl, money, num, round2, today, addDays, fmtDate, totals, status, STATUS_LABEL, companyLines, renderPaper, buildPages, pageCanvas, toPdf, toJpeg, BASIS_LABEL, bases, scheduleAmounts, scheduleCheck, shareLabel, included, isQuote, typeName, TYPE_NAME };
 })();
