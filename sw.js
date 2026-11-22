@@ -1,7 +1,7 @@
 // BoltedBid service worker: makes Folio installable and lets the app open even with a weak signal.
 // Your own files are always fetched fresh when online (so updates show right away);
 // the saved copy is only used when there's no connection.
-const CACHE = 'boltedbid-v10';
+const CACHE = 'boltedbid-v11';
 const SHELL = ['./', './index.html', './app.html', './team.html', './team.webmanifest', './team-ios.webmanifest', './app.js', './render.js', './data.js', './importer.js', './contract.js', './styles.css', './config.js', './plans.js', './manifest.webmanifest', './icons/icon-192.png'];
 const LIBS = /(^|\.)(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 

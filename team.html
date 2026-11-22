@@ -109,7 +109,7 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="config.js?v=20261122b"></script>
+  <script src="config.js?v=20261122c"></script>
   <script>
   (function () {
     const $ = (s, el = document) => el.querySelector(s);
@@ -224,8 +224,11 @@
       if (e.status === 'pending') {
         main.innerHTML = `<div class="card hello"><h1>Hi ${esc(name)}</h1><div class="co">${c.logo ? `<span class="logo" style="background-image:url('${esc(c.logo)}')"></span>` : ''}${esc(c.name)}</div></div>
           <div class="note">You've asked to join <b>${esc(c.name)}</b>. You can punch in as soon as they approve you.</div>
-          <button class="btn wide" id="re">Check again</button>`;
-        $('#re').onclick = start; return;
+          <button class="btn wide" id="re">Check again</button>
+          ${(isIOS || isAndroid) && !standalone() ? '<button class="btn wide" id="getApp">Install the Time Clock app</button>' : ''}`;
+        $('#re').onclick = start;
+        if ($('#getApp')) $('#getApp').onclick = () => { try { sessionStorage.removeItem(skipKey); } catch (e) { /* ignore */ } installView(); };
+        return;
       }
       if (e.status === 'removed') {
         main.innerHTML = `<div class="card"><h1 style="font-size:24px">You're no longer on ${esc(c.name)}'s team</h1><p class="sub" style="margin-top:8px">If this is a mistake, talk to your employer. To join another company, use its code.</p><button class="btn wide" id="jn" style="margin-top:16px">Join with a code</button></div>`;
@@ -253,10 +256,12 @@
           <button class="punch ${open ? 'out' : ''}" id="pb" ${team.company_active || open ? '' : 'disabled'}>${open ? 'Punch out' : 'Punch in'}</button>
           <p class="loc">Your location is recorded when you punch in and out, so your employer can confirm the job site.</p>
         </div>
+        ${(isIOS || isAndroid) && !standalone() ? '<div class="card" style="display:flex;align-items:center;gap:12px;padding:14px 16px"><img src="icons/icon-192.png" alt="" style="width:40px;height:40px;border-radius:10px"><div style="flex:1"><b>Get the Time Clock app</b><div class="sub">Punch in from your home screen.</div></div><button class="btn" id="getApp" style="min-height:42px">Install</button></div>' : ''}
         <div class="stats"><div class="stat"><span>Today</span><b id="td">${hm(todayMs())}</b></div><div class="stat"><span>This week</span><b id="tw">${hm(weekMs())}</b></div></div>
         <div class="card"><h3>Recent shifts</h3>
           <ul class="shifts">${list.length ? list.slice(0, 20).map((t) => `<li><div><div class="d">${esc(fmtDay(t.clock_in))}</div><div class="sub">${esc(fmtTime(t.clock_in))} – ${t.clock_out ? esc(fmtTime(t.clock_out)) : 'now'}${t.job_id && jobName(t.job_id) ? ' · ' + esc(jobName(t.job_id)) : ''}</div></div><div class="h">${hm(dur(t))}</div></li>`).join('') : '<li class="sub">No shifts yet.</li>'}</ul>
         </div>`;
+      if ($('#getApp')) $('#getApp').onclick = () => { try { sessionStorage.removeItem(skipKey); } catch (e) { /* ignore */ } installView(); };
       clearInterval(tick);
       if (open) tick = setInterval(() => { $('#tm').textContent = hms(Date.now() - new Date(open.clock_in)); $('#td').textContent = hm(todayMs()); $('#tw').textContent = hm(weekMs()); }, 1000);
       $('#pb').onclick = async () => {
@@ -285,8 +290,11 @@
     const share = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Share"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
     const plusBox = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
 
-    function installView() {
+    async function installView() {
       $('#out').hidden = true;
+      const { data: s0 } = await sb.auth.getSession();
+      const signedIn = !!s0.session;
+      const finish = signedIn ? 'and sign in there' : 'and sign up there';
       const code = new URLSearchParams(location.search).get('code') || '';
       const chip = code ? `<p class="sub" style="margin-bottom:16px">Your company code is <span class="codechip">${esc(code.toUpperCase())}</span>${isIOS ? '. It will be filled in for you.' : ''}</p>` : '';
       let body = '';
@@ -301,18 +309,20 @@
           <p class="sub">Don't see it? Open this page in <b>Safari</b> and try again.</p>`;
       } else if (isIOS) {
         body = `<h1>Add the Time Clock to your home screen</h1><p class="lead">Free, takes 10 seconds, no App Store needed.</p>
-          <ol class="steps"><li><span>Tap the Share button ${share} at the bottom of Safari</span></li><li><span>Scroll down and tap <b>Add to Home Screen</b> ${plusBox}</span></li><li><span>Tap <b>Add</b>, then open <b>Time Clock</b> from your home screen and sign up there</span></li></ol>`;
+          <ol class="steps"><li><span>Tap the Share button ${share} at the bottom of Safari</span></li><li><span>Scroll down and tap <b>Add to Home Screen</b> ${plusBox}</span></li><li><span>Tap <b>Add</b>, then open <b>Time Clock</b> from your home screen ${finish}</span></li></ol>`;
       } else {
         body = `<h1>Install the Time Clock app</h1><p class="lead">Free, takes 10 seconds, no Play Store needed.</p>
           <button class="btn primary wide" id="inst" ${window.__bip ? '' : 'hidden'}>Install the app</button>
-          <ol class="steps" id="manual" ${window.__bip ? 'hidden' : ''}><li><span>Tap the <b>⋮</b> menu at the top right of Chrome</span></li><li><span>Tap <b>Install app</b> or <b>Add to Home screen</b></span></li><li><span>Open <b>Time Clock</b> from your home screen and sign up there</span></li></ol>`;
+          <ol class="steps" id="manual" ${window.__bip ? 'hidden' : ''}><li><span>Tap the <b>⋮</b> menu at the top right of Chrome</span></li><li><span>Tap <b>Install app</b> or <b>Add to Home screen</b></span></li><li><span>Open <b>Time Clock</b> from your home screen ${finish}</span></li></ol>
+          <p class="sub" id="manualNote" ${window.__bip ? 'hidden' : ''}>Opened this by scanning a QR code and don't see <b>Install app</b>? Tap <b>⋮</b> → <b>Open in Chrome</b> first.</p>`;
       }
       main.innerHTML = `<div class="card install"><img class="icon" src="icons/icon-192.png" alt="Time Clock app icon">${body}${chip}
         <p><button class="link" id="skip">Continue in the browser instead</button></p></div>
         ${isIOS && iosSafari && !inAppBrowser ? `<div class="arrow" aria-hidden="true"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg></div>` : ''}`;
       $('#skip').onclick = () => { try { sessionStorage.setItem(skipKey, '1'); } catch (e) { /* ignore */ } start(); };
+      if (signedIn && isIOS) main.insertAdjacentHTML('beforeend', '<p class="sub center">On iPhone, the app keeps its own sign-in, so you\'ll sign in once more inside it.</p>');
       if ($('#cp')) $('#cp').onclick = async () => { try { await navigator.clipboard.writeText(location.href); toast('Link copied. Paste it in ' + (isIOS ? 'Safari' : 'Chrome') + '.'); } catch (e) { prompt('Copy this link:', location.href); } };
-      const showBtn = () => { if ($('#inst')) { $('#inst').hidden = false; $('#manual').hidden = true; } };
+      const showBtn = () => { if ($('#inst')) { $('#inst').hidden = false; $('#manual').hidden = true; if ($('#manualNote')) $('#manualNote').hidden = true; } };
       document.addEventListener('bip', showBtn, { once: true });
       if ($('#inst')) $('#inst').onclick = async () => {
         const e = window.__bip; if (!e) return;
@@ -327,10 +337,7 @@
 
     async function start() {
       clearInterval(tick);
-      if ((isIOS || isAndroid) && !standalone() && !skipped()) {
-        const { data: s0 } = await sb.auth.getSession();
-        if (!s0.session) return installView();
-      }
+      if ((isIOS || isAndroid) && !standalone() && !skipped()) return installView();
       const { data } = await sb.auth.getSession();
       user = data.session && data.session.user;
       if (!user) return authView(new URLSearchParams(location.search).get('code') ? 'up' : 'in');
