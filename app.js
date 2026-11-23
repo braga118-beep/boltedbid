@@ -211,6 +211,9 @@
     S.needsUpgrade5 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_after_accept' in companies[0]);
     S.needsUpgrade6 = S.mode === 'cloud' && !S.needsUpgrade3 && companies.length > 0 && !('contract_mode' in companies[0]);
     Object.assign(S, { companies, customers, documents, payments, events, items: optional[0] || [], photos: optional[1] || [], jobs: optional[2] || [] });
+    S.calendar = await Store.list('calendar_events').catch(() => null);
+    S.needsUpgrade10 = S.mode === 'cloud' && S.calendar === null && !S.needsUpgrade3;
+    S.calendar = S.calendar || [];
     S.employees = await Store.list('employees').catch(() => null);
     S.needsUpgrade8 = S.mode === 'cloud' && S.employees === null && !S.needsUpgrade3;
     S.employees = S.employees || [];
@@ -302,9 +305,11 @@
       e.stopPropagation();
       if (menuEl) { closeMenus(); return; }
       openMenu(e.currentTarget, [
+        { label: 'Team', run: () => go('#/team') }, { label: 'Calendar', run: () => go('#/calendar') },
         { label: 'Change orders', run: () => go('#/change_orders') }, { label: 'Customers', run: () => go('#/customers') },
-        { label: 'Team', run: () => go('#/team') }, { label: 'Price book', run: () => go('#/pricebook') }, { label: 'Companies', run: () => go('#/companies') }, { label: 'Settings', run: () => go('#/settings') },
-        ...(S.isAdmin ? [{ label: 'Admin', run: () => go('#/admin') }] : [])]);
+        { label: 'Price book', run: () => go('#/pricebook') }, { label: 'Companies', run: () => go('#/companies') },
+        ...(S.isAdmin ? [{ label: 'Admin', run: () => go('#/admin') }] : []), { label: 'Settings', run: () => go('#/settings') },
+        ...(S.mode === 'cloud' ? [{ label: 'Sign out', run: signOut }] : [])]);
     };
     document.addEventListener('click', (e) => { if (menuEl && !menuEl.contains(e.target)) closeMenus(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenus(); });
@@ -315,24 +320,33 @@
     window.addEventListener('beforeunload', (e) => { if (E && E.dirty) { e.preventDefault(); e.returnValue = ''; } });
   }
 
+  async function signOut() {
+    if (!confirm('Sign out of BoltedBid on this device?')) return;
+    try { await Store.signOut(); } catch (e) { /* signed out locally anyway */ }
+    location.hash = ''; location.reload();
+  }
+
   function renderChrome() {
     const sw = $('#companySwitch');
     if (S.filter !== 'all' && !company(S.filter)) S.filter = 'all';
     sw.innerHTML = `<option value="all">All companies</option>` + S.companies.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     sw.value = S.filter;
     $('.switch').hidden = S.companies.length < 2;
+    const who = (S.user && S.user.email) || '';
     $('#sideFoot').innerHTML = S.mode === 'demo'
-      ? `<span class="demo-tag">Demo mode</span><p>Data is saved in this browser only. Connect a backend to sign in anywhere and email customers.</p>`
-      : `<p>${esc(S.user && S.user.email)}</p>`;
+      ? `<div class="me"><span class="me-av">D</span><div class="me-t"><b>Demo mode</b><span>Saved in this browser only</span></div></div>`
+      : `<div class="me"><span class="me-av">${esc((who[0] || '?').toUpperCase())}</span><div class="me-t"><b>${esc(S.account && S.account.full_name ? S.account.full_name : who.split('@')[0])}</b><span title="${esc(who)}">${esc(who)}</span></div></div>
+         <button type="button" class="nav-out" id="sideOut"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></svg><span class="nl">Sign out</span></button>`;
+    if ($('#sideOut')) $('#sideOut').onclick = signOut;
     renderBell();
     const bn = $('#banner');
-    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql', S.needsUpgrade7 && 'upgrade-7.sql', S.needsUpgrade8 && 'upgrade-8.sql'].filter(Boolean);
+    const files = [S.needsUpgrade && 'upgrade-1.sql', S.needsUpgrade2 && 'upgrade-2.sql', S.needsUpgrade3 && 'upgrade-3.sql', S.needsUpgrade4 && 'upgrade-4.sql', S.needsUpgrade5 && 'upgrade-5.sql', S.needsUpgrade6 && 'upgrade-6.sql', S.needsUpgrade7 && 'upgrade-7.sql', S.needsUpgrade8 && 'upgrade-8.sql', S.needsUpgrade10 && 'upgrade-9.sql and upgrade-10.sql'].filter(Boolean);
     bn.hidden = !files.length;
-    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : S.needsUpgrade6 ? 'uploading your own contract' : S.needsUpgrade7 ? 'accounts, free trials and your admin panel' : 'the Team time clock'}.`;
+    bn.innerHTML = `BoltedBid was updated. Run ${files.map((f) => `<b>${f}</b>`).join(', then ')} in Supabase (SQL Editor) to turn on ${S.needsUpgrade ? 'the price book, payment schedules, photos, ' : ''}${S.needsUpgrade2 ? 'jobs and change orders, ' : ''}${S.needsUpgrade3 ? 'contracts and e-signatures' : S.needsUpgrade4 ? 'sending contracts for estimates already accepted' : S.needsUpgrade5 ? 'showing the contract to sign after your customer accepts' : S.needsUpgrade6 ? 'uploading your own contract' : S.needsUpgrade7 ? 'accounts, free trials and your admin panel' : S.needsUpgrade8 ? 'the Team time clock' : 'security improvements and the Calendar'}.`;
     renderAcctBar();
     $$('[data-nav="admin"]').forEach((x) => (x.hidden = !S.isAdmin));
     const pend = S.employees.filter((e) => e.status === 'pending').length;
-    $$('[data-nav="team"]').forEach((x) => { x.innerHTML = 'Team' + (pend ? ` <span class="nav-badge">${pend}</span>` : ''); });
+    const tb = $('#teamBadge'); if (tb) { tb.hidden = !pend; tb.textContent = pend; }
   }
 
   function unread() { return S.events.filter((e) => !e.seen && (e.kind === 'viewed' || e.kind === 'accepted' || e.kind === 'signed') && docById(e.document_id)); }
@@ -458,7 +472,7 @@
     if (p === 'job') nav = 'jobs';
     if (p === 'import') nav = 'settings';
     $$('[data-nav]').forEach((x) => x.classList.toggle('on', x.dataset.nav === nav));
-    $('#moreTab').classList.toggle('on', ['change_orders', 'customers', 'pricebook', 'companies', 'settings', 'admin', 'team'].includes(nav));
+    $('#moreTab').classList.toggle('on', ['change_orders', 'customers', 'pricebook', 'companies', 'settings', 'admin', 'team', 'calendar'].includes(nav));
     window.scrollTo(0, 0);
     switch (p) {
       case 'dashboard': return vDashboard(v);
@@ -467,6 +481,7 @@
       case 'change_orders': return vList(v, 'change_order');
       case 'jobs': return vJobs(v);
       case 'team': return vTeam(v);
+      case 'calendar': return vCalendar(v);
       case 'job': return vJob(v, a);
       case 'doc': return vEditor(v, docById(a));
       case 'new': return vEditor(v, null, LIST_LABEL[a] ? a : 'estimate');
@@ -2974,6 +2989,181 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
     </section>`;
   }
 
+  // ---------------- Calendar ----------------
+  const CAL_KINDS = {
+    estimate_visit: { label: 'Estimate visit', cls: 'ck-est' },
+    job_start: { label: 'Job start', cls: 'ck-start' },
+    work_day: { label: 'Work day', cls: 'ck-work' },
+    follow_up: { label: 'Follow-up', cls: 'ck-follow' },
+    other: { label: 'Other', cls: 'ck-other' },
+    invoice_due: { label: 'Invoice due', cls: 'ck-due', auto: true },
+    estimate_expires: { label: 'Estimate expires', cls: 'ck-exp', auto: true }
+  };
+  const isoDay = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 10); };
+  const dayDate = (iso) => new Date(iso + 'T12:00:00');
+  const fmtClock = (t) => { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); const d = new Date(2000, 0, 1, h, m); return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: m ? '2-digit' : undefined }).replace(':00', ''); };
+
+  function calItems(from, to, showAuto) {
+    const inScope = (cid) => S.filter === 'all' || !cid || cid === S.filter;
+    const items = S.calendar.filter((e) => e.day >= from && e.day <= to && inScope(e.company_id)).map((e) => ({ ...e }));
+    if (showAuto) {
+      S.documents.forEach((d) => {
+        if (d.archived || !d.due_date || d.due_date < from || d.due_date > to || !inScope(d.company_id)) return;
+        const st = status(d);
+        if (d.type === 'invoice' && ['sent', 'viewed', 'partial', 'overdue'].includes(st)) items.push({ id: 'inv-' + d.id, doc_id: d.id, kind: 'invoice_due', auto: true, day: d.due_date, title: `Invoice ${d.number} due${d.customer_name ? ', ' + d.customer_name : ''}` });
+        if (d.type === 'estimate' && ['sent', 'viewed'].includes(st)) items.push({ id: 'est-' + d.id, doc_id: d.id, kind: 'estimate_expires', auto: true, day: d.due_date, title: `Estimate ${d.number} expires${d.customer_name ? ', ' + d.customer_name : ''}` });
+      });
+    }
+    return items.sort((a, b) => (a.day + (a.start_time || '00:00')).localeCompare(b.day + (b.start_time || '00:00')));
+  }
+
+  function vCalendar(v) {
+    if (S.needsUpgrade10) { v.innerHTML = '<div class="head"><h1>Calendar</h1></div><p class="sub">Run <b>upgrade-9.sql</b> and <b>upgrade-10.sql</b> in Supabase to turn on the Calendar.</p>'; return; }
+    const pref = (k, d) => { try { return localStorage.getItem('bb:cal:' + k) || d; } catch (e) { return d; } };
+    const setPref = (k, val) => { try { localStorage.setItem('bb:cal:' + k, val); } catch (e) { /* ignore */ } };
+    const C = { view: pref('view', innerWidth < 700 ? 'list' : 'month'), cursor: new Date(), showAuto: pref('auto', '1') === '1' };
+    const todayIso = isoDay(new Date());
+    const monday = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+    const addD = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+    const chip = (e) => `<button type="button" class="cal-chip ${CAL_KINDS[e.kind] ? CAL_KINDS[e.kind].cls : 'ck-other'} ${e.auto ? 'auto' : ''}" data-ev="${esc(e.id)}" title="${esc(e.title)}">${e.start_time ? `<b>${esc(fmtClock(e.start_time))}</b> ` : ''}${esc(e.title)}</button>`;
+    const row = (e) => `<button type="button" class="cal-row ${CAL_KINDS[e.kind] ? CAL_KINDS[e.kind].cls : ''} ${e.auto ? 'auto' : ''}" data-ev="${esc(e.id)}">
+        <span class="cal-time">${e.start_time ? esc(fmtClock(e.start_time)) + (e.end_time ? '–' + esc(fmtClock(e.end_time)) : '') : 'All day'}</span>
+        <span class="cal-what"><b>${esc(e.title)}</b><span class="sub">${esc((CAL_KINDS[e.kind] || {}).label || '')}${e.address ? ' · ' + esc(e.address.split('\n')[0]) : ''}</span></span></button>`;
+
+    function range() {
+      if (C.view === 'month') { const first = new Date(C.cursor.getFullYear(), C.cursor.getMonth(), 1, 12); const start = monday(first); return [start, addD(start, 41)]; }
+      if (C.view === 'week') { const start = monday(C.cursor); return [start, addD(start, 6)]; }
+      const start = new Date(C.cursor); start.setHours(12, 0, 0, 0); return [start, addD(start, 59)];
+    }
+    function label() {
+      const [a, b] = range();
+      if (C.view === 'month') return C.cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const f = (d, y) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(y ? { year: 'numeric' } : {}) });
+      return `${f(a)} – ${f(b, true)}`;
+    }
+    function draw() {
+      const [a, b] = range();
+      const items = calItems(isoDay(a), isoDay(b), C.showAuto);
+      const byDay = {};
+      items.forEach((e) => (byDay[e.day] = byDay[e.day] || []).push(e));
+      let body = '';
+      if (C.view === 'month') {
+        const month = C.cursor.getMonth();
+        body = `<div class="cal-month"><div class="cal-wd">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<span>${d}</span>`).join('')}</div><div class="cal-grid">
+          ${[...Array(42)].map((_, i) => { const d = addD(a, i), k = isoDay(d), list = byDay[k] || [];
+            return `<div class="cal-cell ${d.getMonth() !== month ? 'out' : ''} ${k === todayIso ? 'today' : ''}" data-day="${k}">
+              <span class="cal-num">${d.getDate()}</span>${list.slice(0, 3).map(chip).join('')}${list.length > 3 ? `<button type="button" class="cal-more" data-dayview="${k}">+${list.length - 3} more</button>` : ''}</div>`; }).join('')}
+          </div></div>`;
+      } else if (C.view === 'week') {
+        body = `<div class="cal-week">${[...Array(7)].map((_, i) => { const d = addD(a, i), k = isoDay(d), list = byDay[k] || [];
+          return `<section class="cal-day ${k === todayIso ? 'today' : ''}"><header><b>${esc(d.toLocaleDateString('en-US', { weekday: 'short' }))}</b> <span>${d.getDate()}</span><button type="button" class="link small" data-add="${k}">+ Add</button></header>
+            ${list.length ? list.map(row).join('') : '<p class="sub cal-empty">Nothing planned</p>'}</section>`; }).join('')}</div>`;
+      } else {
+        const days = Object.keys(byDay).sort();
+        body = `<div class="cal-list">${days.length ? days.map((k) => `<section><h3 class="${k === todayIso ? 'today' : ''}">${esc(dayDate(k).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}${k === todayIso ? ' <span class="pill">Today</span>' : ''}</h3>${byDay[k].map(row).join('')}</section>`).join('')
+          : '<p class="sub">Nothing planned in the next 60 days. Tap <b>New entry</b> to add an estimate visit or a job start.</p>'}</div>`;
+      }
+      v.innerHTML = `
+        <div class="head"><div><h1>Calendar</h1><p class="sub">Estimate visits, job starts and work days, plus invoice due dates.</p></div>
+          <div class="btn-row"><button class="btn" id="calSync">Phone calendar</button><button class="btn primary" id="calNew">New entry</button></div></div>
+        <div class="cal-bar">
+          <div class="seg" role="group" aria-label="View">${['month', 'week', 'list'].map((k) => `<button data-view="${k}" class="${C.view === k ? 'on' : ''}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+          <div class="cal-nav"><button class="btn" id="calPrev" aria-label="Previous">‹</button><button class="btn" id="calToday">Today</button><button class="btn" id="calNext" aria-label="Next">›</button><b class="cal-label">${esc(label())}</b></div>
+          <label class="check small cal-auto"><input type="checkbox" id="calAuto" ${C.showAuto ? 'checked' : ''}> Show due dates</label>
+        </div>
+        <div class="cal-legend">${Object.entries(CAL_KINDS).filter(([, x]) => !x.auto || C.showAuto).map(([, x]) => `<span class="${x.cls}"><i></i>${x.label}</span>`).join('')}</div>
+        ${body}`;
+      $$('[data-view]', v).forEach((x) => (x.onclick = () => { C.view = x.dataset.view; setPref('view', C.view); draw(); }));
+      const step = (n) => { if (C.view === 'month') C.cursor = new Date(C.cursor.getFullYear(), C.cursor.getMonth() + n, 1, 12); else C.cursor = addD(C.cursor, n * (C.view === 'week' ? 7 : 60)); draw(); };
+      $('#calPrev').onclick = () => step(-1);
+      $('#calNext').onclick = () => step(1);
+      $('#calToday').onclick = () => { C.cursor = new Date(); draw(); };
+      $('#calAuto').onchange = (e) => { C.showAuto = e.target.checked; setPref('auto', C.showAuto ? '1' : '0'); draw(); };
+      $('#calNew').onclick = () => editEvent(null, C.view === 'month' && C.cursor.getMonth() !== new Date().getMonth() ? isoDay(new Date(C.cursor.getFullYear(), C.cursor.getMonth(), 1, 12)) : todayIso);
+      $('#calSync').onclick = syncModal;
+      $$('[data-ev]', v).forEach((x) => (x.onclick = (e) => { e.stopPropagation(); const it = items.find((i) => i.id === x.dataset.ev); if (!it) return; if (it.auto) go('#/doc/' + it.doc_id); else editEvent(S.calendar.find((c) => c.id === it.id)); }));
+      $$('[data-day]', v).forEach((x) => (x.onclick = () => editEvent(null, x.dataset.day)));
+      $$('[data-add]', v).forEach((x) => (x.onclick = () => editEvent(null, x.dataset.add)));
+      $$('[data-dayview]', v).forEach((x) => (x.onclick = (e) => { e.stopPropagation(); C.view = 'week'; C.cursor = dayDate(x.dataset.dayview); draw(); }));
+    }
+
+    function editEvent(ev, day) {
+      const e = ev || { kind: 'estimate_visit', day: day || todayIso, start_time: '09:00', end_time: '10:00' };
+      const allDay = ev ? !ev.start_time : false;
+      const custs = S.customers.slice().sort((x, y) => x.name.localeCompare(y.name));
+      const jobs = (S.jobs || []).filter((j) => S.filter === 'all' || j.company_id === S.filter);
+      const t5 = (t) => (t ? String(t).slice(0, 5) : '');
+      modal(`<h2>${ev ? 'Edit entry' : 'New calendar entry'}</h2>
+        <div class="grid2" style="margin-top:12px">
+          <label>Type<select id="cKind">${Object.entries(CAL_KINDS).filter(([, x]) => !x.auto).map(([k, x]) => `<option value="${k}" ${e.kind === k ? 'selected' : ''}>${x.label}</option>`).join('')}</select></label>
+          <label>Date<input type="date" id="cDay" value="${esc(e.day)}" required></label>
+          <label class="full">Title<input id="cTitle" maxlength="200" value="${esc(e.title || '')}" placeholder="Filled in from the type and customer if left empty"></label>
+          <label class="check small full"><input type="checkbox" id="cAll" ${allDay ? 'checked' : ''}> All day</label>
+          <label class="cTime">Starts<input type="time" id="cStart" value="${esc(t5(e.start_time) || '09:00')}"></label>
+          <label class="cTime">Ends<input type="time" id="cEnd" value="${esc(t5(e.end_time))}"></label>
+          <label>Customer<select id="cCust"><option value="">None</option>${custs.map((c) => `<option value="${c.id}" ${e.customer_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>
+          <label>Job<select id="cJob"><option value="">None</option>${jobs.map((j) => `<option value="${j.id}" ${e.job_id === j.id ? 'selected' : ''}>${esc(j.name)}</option>`).join('')}</select></label>
+          <label class="full">Address<input id="cAddr" value="${esc(e.address || '')}" placeholder="Where"></label>
+          <label class="full">Notes<textarea id="cNotes" rows="3">${esc(e.notes || '')}</textarea></label>
+        </div>
+        <div class="btn-row" style="justify-content:space-between;margin-top:14px">${ev ? '<button class="btn danger" id="cDel">Delete</button>' : '<span></span>'}
+          <div class="btn-row">${e.address ? `<a class="btn" href="https://maps.google.com/?q=${encodeURIComponent(e.address)}" target="_blank" rel="noopener">Directions</a>` : ''}<button class="btn" data-close>Cancel</button><button class="btn primary" id="cSave">Save</button></div></div>`, (w, close) => {
+        const times = () => $$('.cTime', w).forEach((x) => (x.hidden = $('#cAll', w).checked));
+        $('#cAll', w).onchange = times; times();
+        $('#cCust', w).onchange = (x) => { const c = S.customers.find((y) => y.id === x.target.value); if (c && !$('#cAddr', w).value) $('#cAddr', w).value = (c.address || '').split('\n').join(', '); };
+        $('#cJob', w).onchange = (x) => { const j = (S.jobs || []).find((y) => y.id === x.target.value); if (j && !$('#cAddr', w).value) $('#cAddr', w).value = (j.address || '').split('\n').join(', '); };
+        $('#cSave', w).onclick = async () => {
+          const day2 = $('#cDay', w).value;
+          if (!day2) { toast('Pick a date.', { type: 'error' }); return; }
+          const all = $('#cAll', w).checked, st = all ? null : ($('#cStart', w).value || null), en = all || !st ? null : ($('#cEnd', w).value || null);
+          if (st && en && en <= st) { toast('The end time must be after the start time.', { type: 'error' }); return; }
+          const kind = $('#cKind', w).value, cust = S.customers.find((y) => y.id === $('#cCust', w).value), job = (S.jobs || []).find((y) => y.id === $('#cJob', w).value);
+          const title = $('#cTitle', w).value.trim() || `${CAL_KINDS[kind].label}${cust ? ': ' + cust.name : job ? ': ' + job.name : ''}`;
+          const row = { ...(ev ? { id: ev.id } : {}), kind, title: title.slice(0, 200), day: day2, start_time: st, end_time: en,
+            tz: (Intl.DateTimeFormat().resolvedOptions().timeZone) || null, customer_id: cust ? cust.id : null, job_id: job ? job.id : null,
+            company_id: ev ? ev.company_id : (S.filter !== 'all' ? S.filter : (job && job.company_id) || (S.companies[0] || {}).id || null),
+            address: $('#cAddr', w).value.trim() || null, notes: $('#cNotes', w).value.trim() || null };
+          try { const saved = await Store.upsert('calendar_events', row); upsertLocal(S.calendar, saved); close(); toast(ev ? 'Entry updated' : 'Added to your calendar'); draw(); }
+          catch (err) { toast(err.message, { type: 'error', ms: 8000 }); }
+        };
+        if ($('#cDel', w)) $('#cDel', w).onclick = async () => {
+          if (!confirm('Delete this calendar entry?')) return;
+          try { await Store.remove('calendar_events', ev.id); S.calendar = S.calendar.filter((x) => x.id !== ev.id); close(); toast('Entry deleted'); draw(); }
+          catch (err) { toast(err.message, { type: 'error' }); }
+        };
+      });
+    }
+
+    async function syncModal() {
+      if (S.mode !== 'cloud') { modal('<h2>Phone calendar</h2><p class="sub">Once you\'re signed in on boltedbid.com, you\'ll get a private link here that shows your BoltedBid calendar in Google Calendar or on your iPhone, and keeps it up to date.</p><div class="btn-row" style="justify-content:flex-end"><button class="btn" data-close>OK</button></div>'); return; }
+      let token;
+      try { token = await Store.myCalendarFeed(); } catch (e) { toast('Could not make your calendar link: ' + e.message, { type: 'error', ms: 8000 }); return; }
+      const url = Store.feedUrl(token), webcal = url.replace(/^https:/, 'webcal:');
+      modal(`<h2>Show BoltedBid in your phone calendar</h2>
+        <p class="sub">Subscribe once and your entries, invoice due dates and estimate expirations appear in your phone calendar and update on their own. Changes show up within a few hours (Google can take up to a day).</p>
+        <p class="sub" id="feedCheck">Checking the link</p>
+        <label>Your private calendar link<input id="feedUrl" readonly value="${esc(url)}"></label>
+        <div class="btn-row"><button class="btn primary" id="feedCopy">Copy link</button><a class="btn" href="${esc(webcal)}">Add to iPhone or Mac calendar</a></div>
+        <div class="sync-steps">
+          <section><h3>iPhone</h3><ol><li>On your iPhone, open this page and tap <b>Add to iPhone or Mac calendar</b>, then <b>Subscribe</b>.</li><li>Or go to <b>Settings → Apps → Calendar → Calendar Accounts → Add Account → Other → Add Subscribed Calendar</b> and paste the link.</li></ol></section>
+          <section><h3>Google Calendar (Android)</h3><ol><li>On a computer, open <b>calendar.google.com</b>.</li><li>Next to <b>Other calendars</b>, click <b>+</b> → <b>From URL</b>, paste the link and click <b>Add calendar</b>.</li><li>It appears on your Android phone automatically.</li></ol></section>
+        </div>
+        <p class="sub">Keep this link private: anyone who has it can see your calendar. If it gets shared by mistake, make a new one.</p>
+        <div class="btn-row" style="justify-content:space-between"><button class="btn danger" id="feedReset">Make a new link</button><button class="btn" data-close>Done</button></div>`, (w, close) => {
+        $('#feedCopy', w).onclick = async () => { try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { $('#feedUrl', w).select(); } };
+        $('#feedReset', w).onclick = async () => {
+          if (!confirm('Make a new link? Calendars subscribed with the old link stop updating, and you\'ll need to subscribe again.')) return;
+          try { await Store.myCalendarFeed(true); close(); toast('New link made. Subscribe again with the new link.'); syncModal(); } catch (e) { toast(e.message, { type: 'error' }); }
+        };
+        fetch(url).then((r) => r.text().then((t) => {
+          $('#feedCheck', w).innerHTML = r.ok && /BEGIN:VCALENDAR/.test(t) ? '<span class="ok">The link is working.</span>' : '<span class="warn">The link isn\'t working yet. The one-time calendar setup in Supabase still needs to be done (the <b>calendar-feed</b> function).</span>';
+        })).catch(() => { $('#feedCheck', w).innerHTML = '<span class="warn">The link isn\'t working yet. The one-time calendar setup in Supabase still needs to be done (the <b>calendar-feed</b> function).</span>'; });
+      }, 'wide');
+    }
+
+    draw();
+  }
+
   // ---------------- Team time clock ----------------
   function vTeam(v) {
     if (S.needsUpgrade8) { v.innerHTML = '<div class="head"><h1>Team</h1></div><p class="sub">Run <b>upgrade-8.sql</b> in Supabase to turn on the Team time clock.</p>'; return; }
@@ -3321,7 +3511,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
         ${S.mode === 'demo'
         ? `<p>You're in demo mode. Everything is stored in this browser and no email is sent. To sign in from any device and email customers, connect your own database and email service using the steps in README.md.</p>
              <button class="btn danger" id="resetDemo">Reset demo data</button>`
-        : `<p>Signed in as <b>${esc(S.user.email)}</b></p><button class="btn" id="signOut">Sign out</button>`}
+        : `<p>Signed in as <b>${esc(S.user.email)}</b>. To sign out, use <b>Sign out</b> at the bottom of the menu.</p>`}
       </section>
       <section class="set">
         <h2>Notifications</h2>
@@ -3352,8 +3542,7 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
     if (ask) ask.onclick = async () => { await Notification.requestPermission(); vSettings(v); };
     const reset = $('#resetDemo');
     if (reset) reset.onclick = () => { if (confirm('Erase all demo data and start over with the sample data?')) { Store.reset(); location.hash = ''; location.reload(); } };
-    const out = $('#signOut');
-    if (out) out.onclick = async () => { await Store.signOut(); location.hash = ''; location.reload(); };
+
   }
 
   boot();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self'; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <script src="guard.js?v=20261122d"></script>
+  <script src="guard.js?v=20261122e"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>BoltedBid | Estimates, contracts and invoices for contractors</title>
   <meta name="description" content="Send polished estimates, let customers accept and sign your own contract from their phone, and invoice every milestone. Works in every state. 30 days free, then $15 a month.">
@@ -121,6 +121,8 @@
     .phone { width: min(230px, 42%); border-radius: 34px; background: #0B1A17; padding: 8px; box-shadow: 0 24px 60px rgba(16,47,42,.25); }
     .phone img { border-radius: 27px; width: 100%; height: auto; aspect-ratio: 390 / 760; object-fit: cover; object-position: top; }
     .phone:nth-child(2) { margin-top: 36px; }
+    .combo { position: relative; padding: 0 12% 34px 0; }
+    .combo .phone { position: absolute; right: 0; bottom: 0; width: 27%; margin: 0; }
 
     /* Feature grid */
     .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
@@ -329,9 +331,11 @@
             <button class="tab" role="tab" aria-selected="true" aria-controls="p1" id="t1" data-desc="Line items, a price book, good, better and best options, add-ons, a booking deposit and milestone payments, with photos on their own pages."><h3><span>1</span>Estimates</h3><p>Line items, a price book, good, better and best options, add-ons, a booking deposit and milestone payments, with photos on their own pages.</p><div class="bar"><i></i></div></button>
             <button class="tab" role="tab" aria-selected="false" aria-controls="p2" id="t2" data-desc="Your customer opens a link on any phone. No app and no account. They pick their options and accept, and you're notified right away."><h3><span>2</span>Customer approval</h3><p>Your customer opens a link on any phone. No app and no account. They pick their options and accept, and you're notified right away.</p><div class="bar"><i></i></div></button>
             <button class="tab" role="tab" aria-selected="false" aria-controls="p3" id="t3" data-desc="Upload your own contract once. After a customer accepts, it appears for their signature, with a signature page tying it to the estimate and the date and time recorded."><h3><span>3</span>Contracts and e-signature</h3><p>Upload your own contract once. After a customer accepts, it appears for their signature, with a signature page tying it to the estimate and the date and time recorded.</p><div class="bar"><i></i></div></button>
-            <button class="tab" role="tab" aria-selected="false" aria-controls="p4" id="t4" data-desc="See every bid as drafts, sent, viewed, accepted and invoiced. Each job keeps its estimate, change orders, invoices, payments and photos together."><h3><span>4</span>Pipeline and jobs</h3><p>See every bid as drafts, sent, viewed, accepted and invoiced. Each job keeps its estimate, change orders, invoices, payments and photos together.</p><div class="bar"><i></i></div></button>
-            <button class="tab" role="tab" aria-selected="false" aria-controls="p5" id="t5" data-desc="Turn each milestone into an invoice, record checks, cash or card payments, send reminders and see what's overdue at a glance."><h3><span>5</span>Invoices and payments</h3><p>Turn each milestone into an invoice, record checks, cash or card payments, send reminders and see what's overdue at a glance.</p><div class="bar"><i></i></div></button>
-            <button class="tab" role="tab" aria-selected="false" aria-controls="p6" id="t6" data-desc="Your numbers for the month: what's outstanding, what's overdue, what came in, and which customers just opened or accepted."><h3><span>6</span>Your business at a glance</h3><p>Your numbers for the month: what's outstanding, what's overdue, what came in, and which customers just opened or accepted.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p7" id="t7" data-desc="Plan estimate visits, job starts and work days on a calendar that also shows invoice due dates. Subscribe once and it shows up in Google Calendar or on your iPhone."><h3><span>4</span>Calendar</h3><p>Plan estimate visits, job starts and work days on a calendar that also shows invoice due dates. Subscribe once and it shows up in Google Calendar or on your iPhone.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p8" id="t8" data-desc="Your crew punches in and out from their phone, with the location recorded. See who's on the clock, approve new hires, and export weekly timesheets with overtime."><h3><span>5</span>Crew time clock</h3><p>Your crew punches in and out from their phone, with the location recorded. See who's on the clock, approve new hires, and export weekly timesheets with overtime.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p4" id="t4" data-desc="See every bid as drafts, sent, viewed, accepted and invoiced. Each job keeps its estimate, change orders, invoices, payments and photos together."><h3><span>6</span>Pipeline and jobs</h3><p>See every bid as drafts, sent, viewed, accepted and invoiced. Each job keeps its estimate, change orders, invoices, payments and photos together.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p5" id="t5" data-desc="Turn each milestone into an invoice, record checks, cash or card payments, send reminders and see what's overdue at a glance."><h3><span>7</span>Invoices and payments</h3><p>Turn each milestone into an invoice, record checks, cash or card payments, send reminders and see what's overdue at a glance.</p><div class="bar"><i></i></div></button>
+            <button class="tab" role="tab" aria-selected="false" aria-controls="p6" id="t6" data-desc="Your numbers for the month: what's outstanding, what's overdue, what came in, and which customers just opened or accepted."><h3><span>8</span>Your business at a glance</h3><p>Your numbers for the month: what's outstanding, what's overdue, what came in, and which customers just opened or accepted.</p><div class="bar"><i></i></div></button>
           </div>
           <div>
             <p class="tab-desc" id="tabDesc"></p>
@@ -339,6 +343,8 @@
               <div class="panel on" role="tabpanel" id="p1" aria-labelledby="t1"><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/estimate.jpg" alt="Editing an estimate in BoltedBid, with the payment schedule beside it" loading="lazy" width="1600" height="1000"></div></div>
               <div class="panel" role="tabpanel" id="p2" aria-labelledby="t2" hidden><div class="phones"><div class="phone"><img src="site/phone-estimate.jpg" alt="The estimate as the customer sees it on a phone" loading="lazy"></div><div class="phone"><img src="site/phone-accept.jpg" alt="The customer choosing options and accepting" loading="lazy"></div></div></div>
               <div class="panel" role="tabpanel" id="p3" aria-labelledby="t3" hidden><div class="phones"><div class="phone"><img src="site/phone-contract.jpg" alt="The contractor's own contract on a phone" loading="lazy"></div><div class="phone"><img src="site/phone-sign.jpg" alt="The customer signing the contract with a finger" loading="lazy"></div></div></div>
+              <div class="panel" role="tabpanel" id="p7" aria-labelledby="t7" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/calendar.jpg" alt="The BoltedBid calendar with estimate visits, job starts and invoice due dates" loading="lazy" width="1600" height="1000"></div></div>
+              <div class="panel" role="tabpanel" id="p8" aria-labelledby="t8" hidden><div class="combo"><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/team.jpg" alt="The Team page with who is on the clock and the weekly timesheet" loading="lazy" width="1600" height="1000"></div><div class="phone"><img src="site/phone-clock.jpg" alt="An employee punched in on the Time Clock app" loading="lazy"></div></div></div>
               <div class="panel" role="tabpanel" id="p4" aria-labelledby="t4" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/pipeline.jpg" alt="The estimates pipeline board" loading="lazy" width="1600" height="1000"></div></div>
               <div class="panel" role="tabpanel" id="p5" aria-labelledby="t5" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/invoice.jpg" alt="An invoice with a recorded payment" loading="lazy" width="1600" height="1000"></div></div>
               <div class="panel" role="tabpanel" id="p6" aria-labelledby="t6" hidden><div class="win"><div class="tb"><i></i><i></i><i></i><span>boltedbid.com</span></div><img src="site/dashboard.jpg" alt="The overview with outstanding and overdue totals and recent activity" loading="lazy" width="1600" height="1000"></div></div>
@@ -505,6 +511,8 @@
           <details class="reveal"><summary>Can I cancel anytime?</summary><p>Yes. Monthly plans stop at the end of the month you've paid for, and you can download a backup of all your data first.</p></details>
           <details class="reveal"><summary>Does it work on my phone?</summary><p>Yes. BoltedBid works in any browser and installs on Android, iPhone and iPad like a regular app, including taking job photos with your camera.</p></details>
           <details class="reveal"><summary>I use Skynova now. Can I bring my work over?</summary><p>Yes. Download your Skynova estimates and invoices as PDFs and BoltedBid reads them in, customers included.</p></details>
+          <details class="reveal"><summary>Can my crew clock in with BoltedBid?</summary><p>Yes. Send your crew an invite link or show them a QR code. They install the free Time Clock app on their phone and punch in and out, with the time and location recorded. You approve each person, see who's on the clock, fix missed punches and export weekly timesheets with overtime.</p></details>
+          <details class="reveal"><summary>Does the calendar work with Google Calendar or my iPhone?</summary><p>Yes. Subscribe once with your private link and your BoltedBid calendar, including estimate visits, job starts and invoice due dates, appears in Google Calendar, on your iPhone or Mac, or in Outlook, and keeps updating.</p></details>
           <details class="reveal"><summary>Can customers pay online?</summary><p>BoltedBid tracks deposits, milestone invoices and the payments you record, by check, cash, card or transfer. Taking card payments inside BoltedBid isn't available yet.</p></details>
         </div>
       </div>
@@ -539,9 +547,9 @@
   </div>
 
   <script src="vendor/supabase-2.45.4.js"></script>
-  <script src="config.js?v=20261122d"></script>
-  <script src="plans.js?v=20261122d"></script>
-  <script src="data.js?v=20261122d"></script>
-  <script src="landing.js?v=20261122d"></script>
+  <script src="config.js?v=20261122e"></script>
+  <script src="plans.js?v=20261122e"></script>
+  <script src="data.js?v=20261122e"></script>
+  <script src="landing.js?v=20261122e"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@
       if (!d.accounts) d.accounts = demoAccounts();
       if (!d.account_payments) d.account_payments = [];
       if (!d.employees) Object.assign(d, demoTeam(d));
+      if (!d.calendar_events) d.calendar_events = demoCalendar(d);
       return d;
     },
     save(d) {
@@ -156,6 +157,7 @@
     // Team time clock
     async timeEntries(fromIso, toIso) { return clone(this.db().time_entries.filter((t) => t.clock_in >= fromIso && t.clock_in < toIso)); },
     async openEntries() { return clone(this.db().time_entries.filter((t) => !t.clock_out)); },
+    async myCalendarFeed() { return 'demo'; },
     async regenerateJoinCode(companyId) {
       const d = this.db(); const c = d.companies.find((x) => x.id === companyId);
       const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let k = ''; for (let i = 0; i < 8; i++) k += a[Math.floor(Math.random() * a.length)];
@@ -167,6 +169,25 @@
       if (i >= 0) d.employee_pay[i] = row; else d.employee_pay.push(row); this.save(d); return row;
     }
   };
+
+  function demoCalendar(d) {
+    const co = d.companies[0] || {};
+    const day = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || null;
+    const ev = (n, kind, title, st, en, address, notes) => ({ id: uid(), owner: 'demo', company_id: co.id || null, kind, title, day: day(n), start_time: st, end_time: en, tz, address, notes: notes || '', created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+    return [
+      ev(0, 'work_day', 'Sill plate repair, day 2', '07:00', '15:30', '41 Harbor View Rd'),
+      ev(1, 'estimate_visit', 'Estimate: bathroom remodel, Lopez', '09:30', '10:30', '88 Maple St', 'Measure for tub-to-shower conversion'),
+      ev(1, 'follow_up', 'Call Sam about deck options', '16:00', null, ''),
+      ev(3, 'estimate_visit', 'Estimate: roof leak, Greene', '08:00', '09:00', '5 Ocean Ave'),
+      ev(4, 'job_start', 'Kitchen remodel starts, Costa', null, null, '41 Harbor View Rd', 'Dumpster delivery 7 AM'),
+      ev(7, 'work_day', 'Kitchen remodel, demo day', '07:00', '15:30', '41 Harbor View Rd'),
+      ev(9, 'estimate_visit', 'Estimate: siding, Patel', '13:00', '14:00', '17 Birch Ln'),
+      ev(12, 'other', 'Lumber yard order pickup', '06:30', null, 'Home Depot'),
+      ev(15, 'job_start', 'Deck build starts, Reyes', null, null, '12 Oak Ridge Ln'),
+      ev(-2, 'estimate_visit', 'Estimate: window install, Kim', '10:00', '11:00', '9 Pine Ct')
+    ];
+  }
 
   function demoTeam(d) {
     const co = d.companies[0];
@@ -292,6 +313,12 @@
       if (error) throw error;
       return data || [];
     },
+    async myCalendarFeed(reset = false) {
+      const { data, error } = await this.sb.rpc('my_calendar_feed', { p_reset: reset });
+      if (error) throw error;
+      return data;
+    },
+    feedUrl(token) { return new URL(String(cfg.SUPABASE_URL).trim()).origin + '/functions/v1/calendar-feed?token=' + encodeURIComponent(token); },
     async regenerateJoinCode(companyId) {
       const { data, error } = await this.sb.rpc('regenerate_join_code', { p_company: companyId });
       if (error) throw error;
@@ -310,7 +337,7 @@
     async upsert(t, obj) {
       const o = { ...obj };
       delete o.owner;
-      if (t === 'documents' || t === 'items') o.updated_at = new Date().toISOString();
+      if (t === 'documents' || t === 'items' || t === 'calendar_events') o.updated_at = new Date().toISOString();
       const q = o.id ? this.sb.from(t).update(o).eq('id', o.id) : this.sb.from(t).insert(o);
       const { data, error } = await q.select().single();
       if (error) throw locked(error);
