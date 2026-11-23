@@ -77,6 +77,7 @@
       case 'contract_sent': return `Sent the contract for ${tn} to ${e.detail || d.customer_name}`;
       case 'sent': return `Sent ${tn} to ${e.detail || d.customer_name}`;
       case 'reminder': return `Sent a payment reminder for ${tn}`;
+      case 'receipt': return `Sent a payment receipt for ${tn}${e.detail ? ' to ' + e.detail : ''}`;
       case 'paid': return `Recorded ${money(e.detail)} payment on ${tn}`;
       default: return `${e.kind} ${tn}`;
     }
@@ -750,6 +751,7 @@
       { label: d.sent_at ? 'Send again' : 'Send', run: () => sendModal(d, 'send') },
       inv && d.sent_at && totals(d).balance > 0 ? { label: 'Send payment reminder', run: () => sendModal(d, 'reminder') } : null,
       inv ? { label: 'Record payment', run: () => paymentModal(d) } : null,
+      inv && lastPayment(d.id) ? { label: 'Send payment receipt', run: () => sendModal(d, 'receipt', lastPayment(d.id)) } : null,
       !inv && d.status !== 'converted' ? { label: d.type === 'change_order' ? 'Create invoice' : 'Convert to invoice', run: () => convert(d) } : null,
       d.type === 'estimate' && ['accepted', 'converted'].includes(d.status) && !S.needsUpgrade2 ? { label: 'New change order', run: () => startChangeOrder(d) } : null,
       d.job_id && jobById(d.job_id) ? { label: 'Open job', run: () => go('#/job/' + d.job_id) } : null,
@@ -917,6 +919,11 @@
   const useEmailFunction = () => S.mode === 'cloud' && !!(window.APP_CONFIG || {}).USE_EMAIL_FUNCTION;
 
   async function markSent(d, kind, to) {
+    if (kind === 'receipt') {
+      const ev = await Store.upsert('events', { document_id: d.id, kind: 'receipt', detail: to || null, seen: true });
+      S.events.push(ev); S.known.add(ev.id);
+      return;
+    }
     const now = new Date().toISOString();
     const patch = { id: d.id, last_sent_at: now, sent_at: d.sent_at || now };
     if (d.status === 'draft') patch.status = 'sent';
@@ -928,17 +935,25 @@
     S.events.push(ev); S.known.add(ev.id);
   }
 
-  function sendModal(d, kind) {
+  function sendModal(d, kind, pay) {
     const co = company(d.company_id) || {};
     const t = totals(d);
     const tn = typeName(d);
     const hi = `Hi ${firstName(d.customer_name)},`;
     const link = customerLink(d);
     const own = !useEmailFunction();
-    const subject = kind === 'reminder' ? `Reminder: invoice ${d.number} from ${co.name}` : `${tn} ${d.number} from ${co.name}`;
+    const subject = kind === 'reminder' ? `Reminder: invoice ${d.number} from ${co.name}`
+      : kind === 'receipt' ? `Payment received: invoice ${d.number} from ${co.name}` : `${tn} ${d.number} from ${co.name}`;
     const linkLine = own ? 'using this link:\n' + link : 'using the link below.';
     let msg;
-    if (kind === 'reminder') {
+    if (kind === 'receipt') {
+      const p = pay || {};
+      const how = [p.method, p.reference ? (/check/i.test(p.method || '') ? 'check #' + p.reference : 'ref. ' + p.reference) : ''].filter(Boolean).join(', ');
+      const left = t.balance > 0.004
+        ? `Remaining balance: ${money(t.balance)}${d.due_date ? ', due ' + fmtDate(d.due_date) : ''}.`
+        : 'Your invoice is now paid in full.';
+      msg = `${hi}\n\nThank you! We received your payment of ${money(p.amount || 0)}${p.paid_on ? ' on ' + fmtDate(p.paid_on) : ''}${how ? ' (' + how + ')' : ''}.\n\nInvoice ${d.number}${d.job_title ? ' (' + d.job_title + ')' : ''}\nInvoice total: ${money(t.total)}\nPaid to date: ${money(t.paid)}\n${left}\n\nYou can view or download your updated invoice ${linkLine}\n\nThank you for your business,\n${co.name}`;
+    } else if (kind === 'reminder') {
       msg = `${hi}\n\nThis is a friendly reminder that invoice ${d.number} for ${money(t.balance)} ${d.due_date && d.due_date < today() ? 'was' : 'is'} due on ${fmtDate(d.due_date)}.\n\nYou can view the invoice online ${linkLine}\n\nThank you,\n${co.name}`;
     } else if (d.type === 'change_order') {
       const ch = t.total >= 0 ? `adds ${money(t.total)} to` : `takes ${money(-t.total)} off`;
@@ -948,8 +963,8 @@
     } else {
       msg = `${hi}\n\nPlease find invoice ${d.number} for ${money(t.balance)}${d.due_date ? ', due ' + fmtDate(d.due_date) : ''}.\n\nYou can view and download the invoice online ${linkLine}\n\nThank you for your business,\n${co.name}`;
     }
-    const verb = kind === 'reminder' ? 'Send reminder' : `Send ${tn.toLowerCase()}`;
-    const title = kind === 'reminder' ? 'Send payment reminder' : `Send ${tn.toLowerCase()} ${esc(d.number)}`;
+    const verb = kind === 'reminder' ? 'Send reminder' : kind === 'receipt' ? 'Send receipt' : `Send ${tn.toLowerCase()}`;
+    const title = kind === 'reminder' ? 'Send payment reminder' : kind === 'receipt' ? `Send payment receipt for ${esc(d.number)}` : `Send ${tn.toLowerCase()} ${esc(d.number)}`;
 
     const actions = own ? `
       <div class="send-opts">
@@ -958,7 +973,7 @@
         <button class="btn" data-via="sms">Text message</button>
         <button class="btn" data-via="copy">Copy message</button>
       </div>
-      <p class="sub">BoltedBid fills in the email for you. Review it and press send in your email. BoltedBid marks the ${tn.toLowerCase()} as sent and notifies you when your customer opens the link.</p>`
+      <p class="sub">${kind === 'receipt' ? 'BoltedBid fills in the receipt for you. Review it and press send in your email or text app. The link shows the updated invoice with the payment and the remaining balance.' : `BoltedBid fills in the email for you. Review it and press send in your email. BoltedBid marks the ${tn.toLowerCase()} as sent and notifies you when your customer opens the link.`}</p>`
       : `<label class="check"><input type="checkbox" id="sAtt" checked> Attach a PDF copy</label>
       <div class="m-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sGo">${verb}</button></div>`;
 
@@ -999,7 +1014,7 @@
             try { await navigator.clipboard.writeText(text); } catch (e) { prompt('Copy this message:', text); }
           }
           const done = { gmail: 'Gmail opened', mail: 'Email app opened', sms: 'Text message opened', copy: 'Message copied' }[via];
-          await finish(to, `${done}. ${tn} ${d.number} marked as sent.`);
+          await finish(to, kind === 'receipt' ? `${done}. Receipt ready to send.` : `${done}. ${tn} ${d.number} marked as sent.`);
         }));
         return;
       }
@@ -1025,7 +1040,7 @@
           S.events.forEach((e) => S.known.add(e.id));
           close();
           renderChrome();
-          toast(`${kind === 'reminder' ? 'Reminder' : tn} sent to ${to}`);
+          toast(`${kind === 'reminder' ? 'Reminder' : kind === 'receipt' ? 'Receipt' : tn} sent to ${to}`);
           afterDocChange(d.id);
         } catch (e) {
           toast('Could not send: ' + e.message, { type: 'error', ms: 8000 });
@@ -1033,6 +1048,10 @@
         }
       };
     });
+  }
+
+  function lastPayment(docId) {
+    return S.payments.filter((p) => p.document_id === docId).sort((a, b) => String(b.paid_on || '').localeCompare(String(a.paid_on || '')) || String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] || null;
   }
 
   function paymentModal(d) {
@@ -1047,6 +1066,7 @@
         <label>Reference<input id="pRef" placeholder="Check number or transaction ID"></label>
       </div>
       <label>Note<input id="pNote" placeholder="Optional"></label>
+      <label class="check"><input type="checkbox" id="pRcpt" checked> Send the customer a receipt next</label>
       <div class="m-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="pGo">Record payment</button></div>`, (w, close) => {
       $('#pGo', w).onclick = async () => {
         const amount = D.round2(parseFloat($('#pAmt', w).value));
@@ -1058,9 +1078,11 @@
           await syncPaid(d.id);
           const ev = await Store.upsert('events', { document_id: d.id, kind: 'paid', detail: String(amount), seen: true });
           S.events.push(ev); S.known.add(ev.id);
+          const rcpt = $('#pRcpt', w).checked;
           close();
           toast(`Payment of ${money(amount)} recorded`);
           afterDocChange(d.id);
+          if (rcpt) sendModal(docById(d.id), 'receipt', p);
         } catch (e) { toast('Could not record payment: ' + e.message, { type: 'error' }); $('#pGo', w).disabled = false; }
       };
     });
@@ -1495,6 +1517,11 @@
     },
     copylink: () => copyLink(E.doc),
     openlink: () => window.open(customerLink(E.doc, true), '_blank'),
+    rcpt: async (b) => {
+      if (!(await ensureSaved())) return;
+      const p = S.payments.find((x) => x.id === b.dataset.id);
+      if (p) sendModal(docById(E.doc.id), 'receipt', p);
+    },
     delpay: async (b) => {
       if (!confirm('Remove this payment?')) return;
       try {
@@ -1543,7 +1570,7 @@
         <div class="row-sb"><h3>Payments</h3><button class="link" data-act="pay">Record payment</button></div>
         ${pays.length ? `<ul class="pays">${pays.map((p) => `
           <li><div><b class="num">${money(p.amount)}</b><span class="sub">${fmtDate(p.paid_on)}${p.method ? ', ' + esc(p.method) : ''}${p.reference ? ' #' + esc(p.reference) : ''}</span></div>
-          <button class="x" data-act="delpay" data-id="${p.id}" aria-label="Remove payment">×</button></li>`).join('')}</ul>` : '<p class="sub">No payments recorded yet.</p>'}
+          <span class="pay-acts"><button class="link small" data-act="rcpt" data-id="${p.id}">Send receipt</button><button class="x" data-act="delpay" data-id="${p.id}" aria-label="Remove payment">×</button></span></li>`).join('')}</ul>` : '<p class="sub">No payments recorded yet.</p>'}
       </div>` : ''}
       <div class="rail-box">
         <h3>Activity</h3>
