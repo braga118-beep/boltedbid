@@ -977,8 +977,11 @@
       : `<label class="check"><input type="checkbox" id="sAtt" checked> Attach a PDF copy</label>
       <div class="m-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="sGo">${verb}</button></div>`;
 
+    const kMiss = kind !== 'reminder' && kind !== 'receipt' && d.type === 'estimate' && co.contract_enabled && window.Contract ? window.Contract.issues(d, co) : [];
+    const kWarn = kMiss.length ? `<div class="sched-warn"><b>Your customer can't accept this estimate yet.</b> Contracts are on, and the contract is missing:<ul class="k-miss">${kMiss.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>Add these first${co.id ? ` (<a href="#/company/${co.id}" data-close>open company profile</a>)` : ''}, or the customer page will ask them to contact you.</div>` : '';
     modal(`
       <h2>${title}</h2>
+      ${kWarn}
       <label>To<input id="sTo" type="email" value="${esc(d.customer_email)}" placeholder="customer@example.com"></label>
       <label>Subject<input id="sSub" value="${esc(subject)}"></label>
       <label>Message<textarea id="sMsg" rows="11">${esc(msg)}</textarea></label>
@@ -2208,15 +2211,15 @@
     };
   }
 
-  // ---------------- Import from Skynova (PDF) ----------------
+  // ---------------- Import estimates and invoices (PDF) ----------------
   const IMP = { rows: [], seq: 0 };
   const normName = (s) => String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
   const EST_STATUS = { sent: 'Sent', accepted: 'Accepted', declined: 'Declined', draft: 'Draft' };
 
   function vImport(v) {
     v.innerHTML = `
-      <div class="head"><div><a class="back" href="#/settings">Settings</a><h1>Import from Skynova</h1>
-        <p class="lead">In Skynova, download each estimate or invoice as a PDF (row menu, then <b>Download/Print PDF</b>) and add them here. BoltedBid reads each one and fills in the customer, address, number, dates, every line item with its description, rate and quantity, the notes and the totals. You check everything before anything is saved.</p></div></div>
+      <div class="head"><div><a class="back" href="#/settings">Settings</a><h1>Import estimates and invoices</h1>
+        <p class="lead">Export your past estimates and invoices as PDF files from the software you use now, then add them here. BoltedBid reads each one and fills in the customer, address, number, dates, every line item with its description, rate and quantity, the notes and the totals. You check everything before anything is saved.</p></div></div>
       <label class="drop" id="impDrop">
         <input type="file" id="impIn" accept="application/pdf,.pdf" multiple class="vh">
         <b>Choose PDF files</b><span class="sub">or drag them here. Add as many as you like, in one batch or several.</span>
@@ -2301,7 +2304,7 @@
       </table></div>
       <div class="imp-foot">
         ${S.companies.length > 1 ? `<label>Import into<select id="impCo">${S.companies.map((c) => `<option value="${c.id}" ${c.id === co.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
-        <p class="sub">Customers with the same name become one customer, so a customer with several estimates gets all of them. Each document gets its own job; an invoice for the same customer and amount as an imported estimate joins that estimate's job. Imported documents keep their Skynova numbers; new ones you create keep BoltedBid's numbering.</p>
+        <p class="sub">Customers with the same name become one customer, so a customer with several estimates gets all of them. Each document gets its own job; an invoice for the same customer and amount as an imported estimate joins that estimate's job. Imported documents keep their original numbers; new ones you create keep BoltedBid's numbering.</p>
         <div class="btn-row"><button class="btn" id="impClear">Start over</button><button class="btn primary" id="impGo" ${inc.length ? '' : 'disabled'}>Import ${plural(inc.length, 'document')}${custCount ? ` for ${plural(custCount, 'customer')}` : ''}</button></div>
       </div>`;
     area.onclick = (e) => {
@@ -2445,7 +2448,7 @@
         if (saved.type === 'estimate') madeEst.push(saved);
         if (est) { const u = await Store.upsert('documents', { id: est.id, status: 'converted', converted_id: saved.id }); upsertLocal(S.documents, u); Object.assign(est, u); }
         if (saved.type === 'invoice' && saved.amount_paid > 0) {
-          const p = await Store.upsert('payments', { document_id: saved.id, amount: saved.amount_paid, paid_on: issued, method: 'Other', reference: '', note: 'Imported from Skynova' });
+          const p = await Store.upsert('payments', { document_id: saved.id, amount: saved.amount_paid, paid_on: issued, method: 'Other', reference: '', note: 'Imported from PDF' });
           S.payments.push(p);
         }
         r.include = false; r.dup = true; done++;
@@ -3546,8 +3549,8 @@ The database structure is in supabase/schema.sql and supabase/upgrade-1.sql from
         ${notif}
       </section>
       <section class="set">
-        <h2>Import from Skynova</h2>
-        <p class="sub">Bring in your past estimates and invoices from Skynova PDFs. Customers, line items, notes and totals are filled in automatically, and you review everything before it's saved.</p>
+        <h2>Import estimates and invoices</h2>
+        <p class="sub">Bring in your past estimates and invoices from PDF files. Customers, line items, notes and totals are filled in automatically, and you review everything before it's saved.</p>
         <a class="btn" href="#/import">Import PDFs</a>
       </section>
       <section class="set">

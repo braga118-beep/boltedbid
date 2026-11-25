@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; media-src 'self'; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'self'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <script src="guard.js?v=20261123"></script>
+  <script src="guard.js?v=20261125"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>BoltedBid | Estimates, contracts and invoices for contractors</title>
   <meta name="description" content="Send polished estimates, let customers accept and sign your own contract from their phone, and invoice every milestone. Works in every state. 30 days free, then $15 a month.">
@@ -313,7 +313,7 @@
           <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 15l2 2 4-4"/></svg>Upload your own contract. Customers sign it online, in any state</div>
           <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Works on your phone, tablet and computer</div>
           <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Know the moment a customer opens your estimate</div>
-          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Bring your estimates and invoices over from Skynova</div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Import your existing estimates and invoices from PDF</div>
         </div>
       </div>
     </section>
@@ -408,7 +408,7 @@
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Every feature, no limits</li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Unlimited estimates and invoices</li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Online contracts and signatures</li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Import from Skynova</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Import past estimates and invoices from PDF</li>
             </ul>
             <a class="btn line wide" href="#account" data-auth="up" data-plan="trial">Start free trial</a>
           </div>
@@ -454,7 +454,7 @@
           <ul>
             <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Your data is private to your account. Customers only see the documents you send them.</span></li>
             <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>30 days free. Pick monthly or yearly whenever you're ready.</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg><span>Coming from Skynova? Bring your estimates and invoices with you.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg><span>Switching software? Import your past estimates and invoices from PDF.</span></li>
           </ul>
         </div>
         <div class="authbox reveal" id="authbox">
@@ -510,7 +510,7 @@
           <details class="reveal"><summary>What happens when my free trial ends?</summary><p>You choose monthly ($15) or yearly ($130). Everything you created during the trial stays in your account.</p></details>
           <details class="reveal"><summary>Can I cancel anytime?</summary><p>Yes. Monthly plans stop at the end of the month you've paid for, and you can download a backup of all your data first.</p></details>
           <details class="reveal"><summary>Does it work on my phone?</summary><p>Yes. BoltedBid works in any browser and installs on Android, iPhone and iPad like a regular app, including taking job photos with your camera.</p></details>
-          <details class="reveal"><summary>I use Skynova now. Can I bring my work over?</summary><p>Yes. Download your Skynova estimates and invoices as PDFs and BoltedBid reads them in, customers included.</p></details>
+          <details class="reveal"><summary>I already use other software. Can I bring my work over?</summary><p>Yes. Export your past estimates and invoices as PDF files and upload them. BoltedBid reads each one and fills in the customer, line items, notes and totals, and you review everything before it's saved.</p></details>
           <details class="reveal"><summary>Can my crew clock in with BoltedBid?</summary><p>Yes. Send your crew an invite link or show them a QR code. They install the free Time Clock app on their phone and punch in and out, with the time and location recorded. You approve each person, see who's on the clock, fix missed punches and export weekly timesheets with overtime.</p></details>
           <details class="reveal"><summary>Does the calendar work with Google Calendar or my iPhone?</summary><p>Yes. Subscribe once with your private link and your BoltedBid calendar, including estimate visits, job starts and invoice due dates, appears in Google Calendar, on your iPhone or Mac, or in Outlook, and keeps updating.</p></details>
           <details class="reveal"><summary>Can customers pay online?</summary><p>BoltedBid tracks deposits, milestone invoices and the payments you record, by check, cash, card or transfer. Taking card payments inside BoltedBid isn't available yet.</p></details>
@@ -547,9 +547,9 @@
   </div>
 
   <script src="vendor/supabase-2.45.4.js"></script>
-  <script src="config.js?v=20261123"></script>
-  <script src="plans.js?v=20261123"></script>
-  <script src="data.js?v=20261123"></script>
-  <script src="landing.js?v=20261123"></script>
+  <script src="config.js?v=20261125"></script>
+  <script src="plans.js?v=20261125"></script>
+  <script src="data.js?v=20261125"></script>
+  <script src="landing.js?v=20261125"></script>
 </body>
 </html>

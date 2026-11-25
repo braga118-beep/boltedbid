@@ -1,7 +1,7 @@
 // BoltedBid service worker: makes BoltedBid installable and lets the app open even with a weak signal.
 // Your own files are always fetched fresh when online (so updates show right away);
 // the saved copy is only used when there's no connection.
-const CACHE = 'boltedbid-v14';
+const CACHE = 'boltedbid-v16';
 const SHELL = ['./', './index.html', './app.html', './team.html', './team.webmanifest', './team-ios.webmanifest', './guard.js', './landing.js', './team.js', './app.js', './render.js', './data.js', './importer.js', './contract.js', './styles.css', './config.js', './plans.js', './manifest.webmanifest', './icons/icon-192.png', './vendor/supabase-2.45.4.js', './vendor/html2canvas-1.4.1.min.js', './vendor/jspdf-2.5.1.umd.min.js', './vendor/jszip-3.10.1.min.js'];
 const LIBS = /(^|\.)(fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 
