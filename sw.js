@@ -1,12 +1,15 @@
 // BoltedBid service worker: makes BoltedBid installable and lets the app open even with a weak signal.
 // Your own files are always fetched fresh when online (so updates show right away);
 // the saved copy is only used when there's no connection.
-const CACHE = 'boltedbid-v16';
+const CACHE = 'boltedbid-v17';
 const SHELL = ['./', './index.html', './app.html', './team.html', './team.webmanifest', './team-ios.webmanifest', './guard.js', './landing.js', './team.js', './app.js', './render.js', './data.js', './importer.js', './contract.js', './styles.css', './config.js', './plans.js', './manifest.webmanifest', './icons/icon-192.png', './vendor/supabase-2.45.4.js', './vendor/html2canvas-1.4.1.min.js', './vendor/jspdf-2.5.1.umd.min.js', './vendor/jszip-3.10.1.min.js'];
 const LIBS = /(^|\.)(fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}).then(() => self.skipWaiting()));
+  // Each file is saved as a plain copy, so it still works when the host shortens addresses (app.html to /app).
+  e.waitUntil(caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) => fetch(u, { cache: 'no-cache' })
+    .then((r) => (r.ok ? r.blob().then((b) => c.put(u, new Response(b, { status: 200, headers: { 'Content-Type': r.headers.get('Content-Type') || '' } }))) : null))
+    .catch(() => null)))).catch(() => {}).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -36,7 +39,8 @@ self.addEventListener('fetch', (e) => {
   // Opening a page: let the browser handle it, so moved addresses (like a new domain) forward
   // normally. The saved app only opens when there's no connection.
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match('./app.html'))));
+    const page = url.pathname.endsWith('/') ? url.pathname + 'index.html' : /\.[a-z]+$/i.test(url.pathname) ? url.pathname : url.pathname + '.html';
+    e.respondWith(fetch(req).catch(() => caches.match(page).then((hit) => hit || caches.match('./app.html'))));
     return;
   }
 
@@ -47,6 +51,6 @@ self.addEventListener('fetch', (e) => {
         if (res.ok && !res.redirected) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(url.pathname + url.search, copy)); }
         return res;
       })
-      .catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match(req)).then((hit) => hit || caches.match('./app.html')))
+      .catch(() => caches.match(url.pathname + url.search).then((hit) => hit || caches.match(req, { ignoreSearch: true })).then((hit) => hit || Response.error()))
   );
 });
